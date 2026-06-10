@@ -1,9 +1,8 @@
 package com.danmo.reader.pdf
 
-import android.speech.tts.TextToSpeech
-import android.speech.tts.UtteranceProgressListener
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -27,7 +26,12 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.danmo.reader.R
-import java.util.*
+import com.danmo.reader.tts.TtsCallbacks
+import com.danmo.reader.tts.TtsController
+import com.danmo.reader.tts.TtsState
+import com.danmo.reader.tts.rememberTtsController
+import kotlinx.coroutines.flow.collectLatest
+import kotlin.math.abs
 
 // ==================== 数据模型 ====================
 
@@ -111,122 +115,80 @@ fun PdfReaderScreen(
     val context = LocalContext.current
     val scrollState = rememberScrollState()
 
-    // TTS 状态
-    var tts by remember { mutableStateOf<TextToSpeech?>(null) }
-    var isTtsReady by remember { mutableStateOf(false) }
+    // 全局段落索引
+    var globalParagraphIndex by remember {
+        mutableIntStateOf(
+            document.pages.take(document.lastReadPage).sumOf { it.paragraphs.size } + document.lastReadParagraph
+        )
+    }
     var isSpeaking by remember { mutableStateOf(false) }
-    var currentPageIndex by remember { mutableIntStateOf(document.lastReadPage) }
-    var currentParagraphIndex by remember { mutableIntStateOf(document.lastReadParagraph) }
-    var speechRate by remember { mutableFloatStateOf(1.0f) }
 
-    // 获取当前页的所有段落
-    val currentPage = document.pages.getOrNull(currentPageIndex)
-    val allParagraphs = remember(document.pages) {
-        document.pages.flatMap { it.paragraphs }
-    }
-    val globalParagraphIndex = remember(currentPageIndex, currentParagraphIndex) {
-        document.pages.take(currentPageIndex).sumOf { it.paragraphs.size } + currentParagraphIndex
-    }
-
-    // 初始化 TTS
-    LaunchedEffect(Unit) {
-        tts = TextToSpeech(context) { status ->
-            if (status == TextToSpeech.SUCCESS) {
-                tts?.language = Locale.CHINESE
-                tts?.setSpeechRate(speechRate)
-                isTtsReady = true
-            }
-        }
-    }
-
-    // 清理 TTS
-    DisposableEffect(Unit) {
-        onDispose {
-            tts?.stop()
-            tts?.shutdown()
-        }
-    }
-
-    // 朗读指定段落（全局索引）
-    fun speakParagraph(globalIndex: Int) {
-        if (!isTtsReady || globalIndex < 0 || globalIndex >= allParagraphs.size) return
-
-        // 计算页码和段落索引
+    // 计算当前页和段落索引
+    fun calculatePageAndParagraph(globalIndex: Int): Pair<Int, Int> {
         var remaining = globalIndex
-        var pageIdx = 0
-        var paraIdx = 0
-
-        for ((pIdx, page) in document.pages.withIndex()) {
+        for ((pageIdx, page) in document.pages.withIndex()) {
             if (remaining < page.paragraphs.size) {
-                pageIdx = pIdx
-                paraIdx = remaining
-                break
+                return pageIdx to remaining
             }
             remaining -= page.paragraphs.size
         }
-
-        currentPageIndex = pageIdx
-        currentParagraphIndex = paraIdx
-
-        val text = allParagraphs[globalIndex]
-        if (text.isBlank()) {
-            // 空段落自动跳过
-            speakParagraph(globalIndex + 1)
-            return
-        }
-
-        tts?.stop()
-        tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "para_$globalIndex")
-        isSpeaking = true
+        return document.pages.size - 1 to 0
     }
 
-    // 暂停朗读
-    fun pauseSpeaking() {
-        tts?.stop()
-        isSpeaking = false
+    // 所有段落的扁平列表
+    val allParagraphs = remember(document.pages) {
+        document.pages.flatMap { it.paragraphs }
     }
 
-    // 继续朗读
-    fun resumeSpeaking() {
-        speakParagraph(globalParagraphIndex)
+    val currentPageIndex = remember(globalParagraphIndex) {
+        calculatePageAndParagraph(globalParagraphIndex).first
+    }
+    val currentParagraphIndex = remember(globalParagraphIndex) {
+        calculatePageAndParagraph(globalParagraphIndex).second
     }
 
-    // 下一段
-    fun nextParagraph() {
-        if (globalParagraphIndex < allParagraphs.size - 1) {
-            speakParagraph(globalParagraphIndex + 1)
-        }
-    }
+    // TTS 回调实现
+    val ttsCallbacks = remember(document) {
+        object : TtsCallbacks {
+            override fun onUtteranceDone(): Boolean {
+                return globalParagraphIndex < allParagraphs.size - 1
+            }
 
-    // 上一段
-    fun previousParagraph() {
-        if (globalParagraphIndex > 0) {
-            speakParagraph(globalParagraphIndex - 1)
-        }
-    }
-
-    // 设置语速
-    fun setSpeechRate(rate: Float) {
-        speechRate = rate
-        tts?.setSpeechRate(rate)
-    }
-
-    // TTS 完成监听
-    LaunchedEffect(isTtsReady) {
-        if (isTtsReady) {
-            tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-                override fun onStart(utteranceId: String?) {}
-                override fun onDone(utteranceId: String?) {
-                    if (globalParagraphIndex < allParagraphs.size - 1) {
-                        speakParagraph(globalParagraphIndex + 1)
-                    } else {
-                        isSpeaking = false
-                    }
+            override fun getCurrentText(): String {
+                val text = allParagraphs.getOrNull(globalParagraphIndex) ?: ""
+                // 空段落自动跳过
+                if (text.isBlank() && globalParagraphIndex < allParagraphs.size - 1) {
+                    globalParagraphIndex++
+                    return getCurrentText()
                 }
-                override fun onError(utteranceId: String?) {
-                    isSpeaking = false
+                return text
+            }
+
+            override fun getCurrentUtteranceId(): String {
+                return "pdf_para_$globalParagraphIndex"
+            }
+
+            override fun moveToNext() {
+                if (globalParagraphIndex < allParagraphs.size - 1) {
+                    globalParagraphIndex++
                 }
-            })
+            }
+
+            override fun moveToPrevious() {
+                if (globalParagraphIndex > 0) {
+                    globalParagraphIndex--
+                }
+            }
+        }
+    }
+
+    // TTS 控制器
+    val ttsController = rememberTtsController(callbacks = ttsCallbacks)
+
+    // 监听 TTS 状态
+    LaunchedEffect(ttsController) {
+        ttsController.state.collectLatest { state ->
+            isSpeaking = state is TtsState.Speaking
         }
     }
 
@@ -251,7 +213,7 @@ fun PdfReaderScreen(
                 navigationIcon = {
                     IconButton(
                         onClick = {
-                            pauseSpeaking()
+                            ttsController.stop()
                             onBackClick()
                         },
                         modifier = Modifier.semantics {
@@ -294,13 +256,11 @@ fun PdfReaderScreen(
                 totalPages = document.totalPages,
                 currentParagraph = globalParagraphIndex + 1,
                 totalParagraphs = allParagraphs.size,
-                speechRate = speechRate,
-                onPrevious = { previousParagraph() },
-                onPlayPause = {
-                    if (isSpeaking) pauseSpeaking() else resumeSpeaking()
-                },
-                onNext = { nextParagraph() },
-                onRateChange = { setSpeechRate(it) }
+                speechRate = ttsController.speechRate.collectAsState().value,
+                onPrevious = { ttsController.speakPrevious() },
+                onPlayPause = { ttsController.togglePlayPause() },
+                onNext = { ttsController.speakNext() },
+                onRateChange = { ttsController.setSpeechRate(it) }
             )
         }
     ) { paddingValues ->
@@ -311,8 +271,37 @@ fun PdfReaderScreen(
                 .background(Color(0xFF1A1A1A))
                 .pointerInput(Unit) {
                     detectTapGestures(
-                        onDoubleTap = { nextParagraph() },
+                        onDoubleTap = { ttsController.speakNext() },
                         onTap = { /* 单击显示当前段落信息 */ }
+                    )
+                }
+                .pointerInput(Unit) {
+                    var swipeDirection = -1
+                    detectDragGestures(
+                        onDrag = { change, dragAmount ->
+                            change.consume()
+                            val (x, y) = dragAmount
+                            if (kotlin.math.abs(x) > kotlin.math.abs(y)) {
+                                when {
+                                    x > 0 -> swipeDirection = 0 // 右滑
+                                    x < 0 -> swipeDirection = 1 // 左滑
+                                }
+                            } else {
+                                when {
+                                    y > 0 -> swipeDirection = 2 // 下滑
+                                    y < 0 -> swipeDirection = 3 // 上滑
+                                }
+                            }
+                        },
+                        onDragEnd = {
+                            when (swipeDirection) {
+                                0 -> ttsController.speakPrevious() // 右滑 → 上一段
+                                1 -> ttsController.speakNext()     // 左滑 → 下一段
+                                2 -> { /* 下滑 */ }
+                                3 -> { /* 上滑 */ }
+                            }
+                            swipeDirection = -1
+                        }
                     )
                 }
         ) {
@@ -335,14 +324,15 @@ fun PdfReaderScreen(
                         val isEmpty = paragraph.isBlank()
 
                         if (!isEmpty) {
+                            val globalIdx = document.pages.take(pageIdx).sumOf { it.paragraphs.size } + paraIdx
                             PdfParagraphItem(
                                 text = paragraph,
                                 isCurrent = isCurrent,
                                 pageNumber = page.pageNumber,
                                 paragraphNumber = paraIdx + 1,
                                 onClick = {
-                                    val globalIdx = document.pages.take(pageIdx).sumOf { it.paragraphs.size } + paraIdx
-                                    speakParagraph(globalIdx)
+                                    globalParagraphIndex = globalIdx
+                                    ttsController.speakCurrent()
                                 }
                             )
 

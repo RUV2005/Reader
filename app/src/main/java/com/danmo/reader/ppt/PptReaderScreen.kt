@@ -1,9 +1,8 @@
 package com.danmo.reader.ppt
 
-import android.speech.tts.TextToSpeech
-import android.speech.tts.UtteranceProgressListener
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -27,7 +26,12 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.danmo.reader.R
-import java.util.*
+import com.danmo.reader.tts.TtsCallbacks
+import com.danmo.reader.tts.TtsController
+import com.danmo.reader.tts.TtsState
+import com.danmo.reader.tts.rememberTtsController
+import kotlinx.coroutines.flow.collectLatest
+import kotlin.math.abs
 
 // ==================== 数据模型 ====================
 
@@ -109,103 +113,56 @@ fun PptReaderScreen(
     val context = LocalContext.current
     val scrollState = rememberScrollState()
 
-    // TTS 状态
-    var tts by remember { mutableStateOf<TextToSpeech?>(null) }
-    var isTtsReady by remember { mutableStateOf(false) }
-    var isSpeaking by remember { mutableStateOf(false) }
+    // 当前幻灯片索引
     var currentSlideIndex by remember { mutableIntStateOf(document.lastReadSlide) }
-    var speechRate by remember { mutableFloatStateOf(1.0f) }
+    var isSpeaking by remember { mutableStateOf(false) }
     var showNotes by remember { mutableStateOf(false) }
 
-    // 初始化 TTS
-    LaunchedEffect(Unit) {
-        tts = TextToSpeech(context) { status ->
-            if (status == TextToSpeech.SUCCESS) {
-                tts?.language = Locale.CHINESE
-                tts?.setSpeechRate(speechRate)
-                isTtsReady = true
+    // TTS 回调实现
+    val ttsCallbacks = remember(document, showNotes) {
+        object : TtsCallbacks {
+            override fun onUtteranceDone(): Boolean {
+                return currentSlideIndex < document.slides.size - 1
             }
-        }
-    }
 
-    // 清理 TTS
-    DisposableEffect(Unit) {
-        onDispose {
-            tts?.stop()
-            tts?.shutdown()
-        }
-    }
-
-    // 朗读指定幻灯片
-    val speakSlide = remember { { index: Int ->
-        if (!isTtsReady || index < 0 || index >= document.slides.size) return@remember
-
-        currentSlideIndex = index
-        val slide = document.slides[index]
-
-        // 构建朗读文本
-        val text = buildString {
-            append("第${slide.slideNumber}页，${slide.title}。")
-            slide.content.forEach { item ->
-                append("$item。")
-            }
-            if (showNotes && slide.notes.isNotEmpty()) {
-                append("备注：${slide.notes}。")
-            }
-        }
-
-        tts?.stop()
-        tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "slide_$index")
-        isSpeaking = true
-    } }
-
-    // 暂停朗读
-    val pauseSpeaking = remember { {
-        tts?.stop()
-        isSpeaking = false
-    } }
-
-    // 继续朗读
-    val resumeSpeaking = remember { {
-        speakSlide(currentSlideIndex)
-    } }
-
-    // 下一页
-    val nextSlide = remember { {
-        if (currentSlideIndex < document.slides.size - 1) {
-            speakSlide(currentSlideIndex + 1)
-        }
-    } }
-
-    // 上一页
-    val previousSlide = remember { {
-        if (currentSlideIndex > 0) {
-            speakSlide(currentSlideIndex - 1)
-        }
-    } }
-
-    // 设置语速
-    val setSpeechRate = remember { { rate: Float ->
-        speechRate = rate
-        tts?.setSpeechRate(rate)
-    } }
-
-    // TTS 完成监听
-    LaunchedEffect(isTtsReady) {
-        if (isTtsReady) {
-            tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-                override fun onStart(utteranceId: String?) {}
-                override fun onDone(utteranceId: String?) {
-                    if (currentSlideIndex < document.slides.size - 1) {
-                        speakSlide(currentSlideIndex + 1)
-                    } else {
-                        isSpeaking = false
+            override fun getCurrentText(): String {
+                val slide = document.slides.getOrNull(currentSlideIndex) ?: return ""
+                return buildString {
+                    append("第${slide.slideNumber}页，${slide.title}。")
+                    slide.content.forEach { item ->
+                        append("$item。")
+                    }
+                    if (showNotes && slide.notes.isNotEmpty()) {
+                        append("备注：${slide.notes}。")
                     }
                 }
-                override fun onError(utteranceId: String?) {
-                    isSpeaking = false
+            }
+
+            override fun getCurrentUtteranceId(): String {
+                return "ppt_slide_$currentSlideIndex"
+            }
+
+            override fun moveToNext() {
+                if (currentSlideIndex < document.slides.size - 1) {
+                    currentSlideIndex++
                 }
-            })
+            }
+
+            override fun moveToPrevious() {
+                if (currentSlideIndex > 0) {
+                    currentSlideIndex--
+                }
+            }
+        }
+    }
+
+    // TTS 控制器
+    val ttsController = rememberTtsController(callbacks = ttsCallbacks)
+
+    // 监听 TTS 状态
+    LaunchedEffect(ttsController) {
+        ttsController.state.collectLatest { state ->
+            isSpeaking = state is TtsState.Speaking
         }
     }
 
@@ -230,7 +187,7 @@ fun PptReaderScreen(
                 navigationIcon = {
                     IconButton(
                         onClick = {
-                            pauseSpeaking()
+                            ttsController.stop()
                             onBackClick()
                         },
                         modifier = Modifier.semantics {
@@ -286,13 +243,11 @@ fun PptReaderScreen(
                 isSpeaking = isSpeaking,
                 currentIndex = currentSlideIndex,
                 totalCount = document.slides.size,
-                speechRate = speechRate,
-                onPrevious = { previousSlide() },
-                onPlayPause = {
-                    if (isSpeaking) pauseSpeaking() else resumeSpeaking()
-                },
-                onNext = { nextSlide() },
-                onRateChange = { setSpeechRate(it) }
+                speechRate = ttsController.speechRate.collectAsState().value,
+                onPrevious = { ttsController.speakPrevious() },
+                onPlayPause = { ttsController.togglePlayPause() },
+                onNext = { ttsController.speakNext() },
+                onRateChange = { ttsController.setSpeechRate(it) }
             )
         }
     ) { paddingValues ->
@@ -303,8 +258,37 @@ fun PptReaderScreen(
                 .background(Color(0xFF1A1A1A))
                 .pointerInput(Unit) {
                     detectTapGestures(
-                        onDoubleTap = { nextSlide() },
+                        onDoubleTap = { ttsController.speakNext() },
                         onTap = { /* 单击显示当前页信息 */ }
+                    )
+                }
+                .pointerInput(Unit) {
+                    var swipeDirection = -1
+                    detectDragGestures(
+                        onDrag = { change, dragAmount ->
+                            change.consume()
+                            val (x, y) = dragAmount
+                            if (kotlin.math.abs(x) > kotlin.math.abs(y)) {
+                                when {
+                                    x > 0 -> swipeDirection = 0 // 右滑
+                                    x < 0 -> swipeDirection = 1 // 左滑
+                                }
+                            } else {
+                                when {
+                                    y > 0 -> swipeDirection = 2 // 下滑
+                                    y < 0 -> swipeDirection = 3 // 上滑
+                                }
+                            }
+                        },
+                        onDragEnd = {
+                            when (swipeDirection) {
+                                0 -> ttsController.speakPrevious() // 右滑 → 上一页
+                                1 -> ttsController.speakNext()     // 左滑 → 下一页
+                                2 -> { /* 下滑 */ }
+                                3 -> { /* 上滑 */ }
+                            }
+                            swipeDirection = -1
+                        }
                     )
                 }
         ) {
@@ -321,7 +305,10 @@ fun PptReaderScreen(
                         slide = slide,
                         isCurrent = isCurrent,
                         showNotes = showNotes,
-                        onClick = { speakSlide(index) }
+                        onClick = {
+                            currentSlideIndex = index
+                            ttsController.speakCurrent()
+                        }
                     )
 
                     if (index < document.slides.size - 1) {

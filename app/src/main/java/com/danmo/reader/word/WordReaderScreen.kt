@@ -1,9 +1,8 @@
 package com.danmo.reader.word
 
-import android.speech.tts.TextToSpeech
-import android.speech.tts.UtteranceProgressListener
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -27,7 +26,12 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.danmo.reader.R
-import java.util.*
+import com.danmo.reader.tts.TtsCallbacks
+import com.danmo.reader.tts.TtsController
+import com.danmo.reader.tts.TtsState
+import com.danmo.reader.tts.rememberTtsController
+import kotlinx.coroutines.flow.collectLatest
+import kotlin.math.abs
 
 // ==================== 数据模型 ====================
 
@@ -74,92 +78,46 @@ fun WordReaderScreen(
     val context = LocalContext.current
     val scrollState = rememberScrollState()
 
-    // TTS 状态 - 使用 remember 保存
-    var tts by remember { mutableStateOf<TextToSpeech?>(null) }
-    var isTtsReady by remember { mutableStateOf(false) }
-    var isSpeaking by remember { mutableStateOf(false) }
+    // 当前段落索引
     var currentParagraphIndex by remember { mutableIntStateOf(document.lastReadIndex) }
-    var speechRate by remember { mutableFloatStateOf(1.0f) }
+    var isSpeaking by remember { mutableStateOf(false) }
 
-    // 初始化 TTS
-    LaunchedEffect(Unit) {
-        tts = TextToSpeech(context) { status ->
-            if (status == TextToSpeech.SUCCESS) {
-                tts?.language = Locale.CHINESE
-                tts?.setSpeechRate(speechRate)
-                isTtsReady = true
+    // TTS 回调实现
+    val ttsCallbacks = remember(document) {
+        object : TtsCallbacks {
+            override fun onUtteranceDone(): Boolean {
+                return currentParagraphIndex < document.paragraphs.size - 1
+            }
+
+            override fun getCurrentText(): String {
+                return document.paragraphs.getOrNull(currentParagraphIndex) ?: ""
+            }
+
+            override fun getCurrentUtteranceId(): String {
+                return "word_para_$currentParagraphIndex"
+            }
+
+            override fun moveToNext() {
+                if (currentParagraphIndex < document.paragraphs.size - 1) {
+                    currentParagraphIndex++
+                }
+            }
+
+            override fun moveToPrevious() {
+                if (currentParagraphIndex > 0) {
+                    currentParagraphIndex--
+                }
             }
         }
     }
 
-    // 清理 TTS
-    DisposableEffect(Unit) {
-        onDispose {
-            tts?.stop()
-            tts?.shutdown()
-        }
-    }
+    // TTS 控制器
+    val ttsController = rememberTtsController(callbacks = ttsCallbacks)
 
-    // 朗读指定段落
-    val speakParagraph = remember { { index: Int ->
-        if (!isTtsReady || index < 0 || index >= document.paragraphs.size) return@remember
-
-        currentParagraphIndex = index
-        val text = document.paragraphs[index]
-
-        tts?.stop()
-        tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "paragraph_$index")
-        isSpeaking = true
-    } }
-
-    // 暂停朗读
-    val pauseSpeaking = remember { {
-        tts?.stop()
-        isSpeaking = false
-    } }
-
-    // 继续朗读
-    val resumeSpeaking = remember { {
-        speakParagraph(currentParagraphIndex)
-    } }
-
-    // 下一段
-    val nextParagraph = remember { {
-        if (currentParagraphIndex < document.paragraphs.size - 1) {
-            speakParagraph(currentParagraphIndex + 1)
-        }
-    } }
-
-    // 上一段
-    val previousParagraph = remember { {
-        if (currentParagraphIndex > 0) {
-            speakParagraph(currentParagraphIndex - 1)
-        }
-    } }
-
-    // 设置语速
-    val setSpeechRate = remember { { rate: Float ->
-        speechRate = rate
-        tts?.setSpeechRate(rate)
-    } }
-
-    // TTS 完成监听
-    LaunchedEffect(isTtsReady) {
-        if (isTtsReady) {
-            tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-                override fun onStart(utteranceId: String?) {}
-                override fun onDone(utteranceId: String?) {
-                    // 自动播放下一段
-                    if (currentParagraphIndex < document.paragraphs.size - 1) {
-                        speakParagraph(currentParagraphIndex + 1)
-                    } else {
-                        isSpeaking = false
-                    }
-                }
-                override fun onError(utteranceId: String?) {
-                    isSpeaking = false
-                }
-            })
+    // 监听 TTS 状态
+    LaunchedEffect(ttsController) {
+        ttsController.state.collectLatest { state ->
+            isSpeaking = state is TtsState.Speaking
         }
     }
 
@@ -183,7 +141,7 @@ fun WordReaderScreen(
                 navigationIcon = {
                     IconButton(
                         onClick = {
-                            pauseSpeaking()
+                            ttsController.stop()
                             onBackClick()
                         },
                         modifier = Modifier.semantics {
@@ -224,26 +182,53 @@ fun WordReaderScreen(
                 isSpeaking = isSpeaking,
                 currentIndex = currentParagraphIndex,
                 totalCount = document.paragraphs.size,
-                speechRate = speechRate,
-                onPrevious = { previousParagraph() },
-                onPlayPause = {
-                    if (isSpeaking) pauseSpeaking() else resumeSpeaking()
-                },
-                onNext = { nextParagraph() },
-                onRateChange = { setSpeechRate(it) }
+                speechRate = ttsController.speechRate.collectAsState().value,
+                onPrevious = { ttsController.speakPrevious() },
+                onPlayPause = { ttsController.togglePlayPause() },
+                onNext = { ttsController.speakNext() },
+                onRateChange = { ttsController.setSpeechRate(it) }
             )
         }
     ) { paddingValues ->
-        // 内容区域 - 支持双击/三击手势
+        // 内容区域 - 支持双击/三击手势 + 滑动手势
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .background(Color(0xFF1A1A1A)) // 高对比度黑底
+                .background(Color(0xFF1A1A1A))
                 .pointerInput(Unit) {
                     detectTapGestures(
-                        onDoubleTap = { nextParagraph() },
+                        onDoubleTap = { ttsController.speakNext() },
                         onTap = { /* 单击可显示当前段落信息 */ }
+                    )
+                }
+                .pointerInput(Unit) {
+                    var swipeDirection = -1
+                    detectDragGestures(
+                        onDrag = { change, dragAmount ->
+                            change.consume()
+                            val (x, y) = dragAmount
+                            if (kotlin.math.abs(x) > kotlin.math.abs(y)) {
+                                when {
+                                    x > 0 -> swipeDirection = 0 // 右滑
+                                    x < 0 -> swipeDirection = 1 // 左滑
+                                }
+                            } else {
+                                when {
+                                    y > 0 -> swipeDirection = 2 // 下滑
+                                    y < 0 -> swipeDirection = 3 // 上滑
+                                }
+                            }
+                        },
+                        onDragEnd = {
+                            when (swipeDirection) {
+                                0 -> ttsController.speakPrevious() // 右滑 → 上一段
+                                1 -> ttsController.speakNext()     // 左滑 → 下一段
+                                2 -> { /* 下滑 */ }
+                                3 -> { /* 上滑 */ }
+                            }
+                            swipeDirection = -1
+                        }
                     )
                 }
         ) {
@@ -256,14 +241,17 @@ fun WordReaderScreen(
                 document.paragraphs.forEachIndexed { index, paragraph ->
                     val isCurrent = index == currentParagraphIndex
                     val isHeading = paragraph.startsWith("第") && paragraph.contains("章") ||
-                            paragraph.matches(Regex("""^\d+\.\d+.*"""))
+                            paragraph.matches(Regex("""^\\d+\\.\\d+.*"""))
 
                     ParagraphItem(
                         text = paragraph,
                         isCurrent = isCurrent,
                         isHeading = isHeading,
                         index = index,
-                        onClick = { speakParagraph(index) }
+                        onClick = {
+                            currentParagraphIndex = index
+                            ttsController.speakCurrent()
+                        }
                     )
 
                     if (index < document.paragraphs.size - 1) {

@@ -1,9 +1,8 @@
 package com.danmo.reader.excel
 
-import android.speech.tts.TextToSpeech
-import android.speech.tts.UtteranceProgressListener
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -27,7 +26,12 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.danmo.reader.R
-import java.util.*
+import com.danmo.reader.tts.TtsCallbacks
+import com.danmo.reader.tts.TtsController
+import com.danmo.reader.tts.TtsState
+import com.danmo.reader.tts.rememberTtsController
+import kotlinx.coroutines.flow.collectLatest
+import kotlin.math.abs
 
 // ==================== 数据模型 ====================
 
@@ -71,57 +75,60 @@ fun ExcelReaderScreen(
     val context = LocalContext.current
     val scrollState = rememberScrollState()
 
-    // TTS 状态
-    var tts by remember { mutableStateOf<TextToSpeech?>(null) }
-    var isTtsReady by remember { mutableStateOf(false) }
-    var isSpeaking by remember { mutableStateOf(false) }
+    // 当前行索引
     var currentRowIndex by remember { mutableIntStateOf(document.lastReadRow) }
-    var speechRate by remember { mutableFloatStateOf(1.0f) }
-    var readMode by remember { mutableStateOf(ReadMode.ROW_BY_ROW) } // 朗读模式
+    var isSpeaking by remember { mutableStateOf(false) }
+    var readMode by remember { mutableStateOf(ReadMode.ROW_BY_ROW) }
 
-    // 初始化 TTS
-    LaunchedEffect(Unit) {
-        tts = TextToSpeech(context) { status ->
-            if (status == TextToSpeech.SUCCESS) {
-                tts?.language = Locale.CHINESE
-                tts?.setSpeechRate(speechRate)
-                isTtsReady = true
+    // TTS 回调实现
+    val ttsCallbacks = remember(document, readMode) {
+        object : TtsCallbacks {
+            override fun onUtteranceDone(): Boolean {
+                return currentRowIndex < document.rows.size - 1
             }
-        }
-    }
 
-    // 清理 TTS
-    DisposableEffect(Unit) {
-        onDispose {
-            tts?.stop()
-            tts?.shutdown()
-        }
-    }
+            override fun getCurrentText(): String {
+                val row = document.rows.getOrNull(currentRowIndex) ?: return ""
+                return buildString {
+                    append("第${currentRowIndex + 1}行。")
+                    document.headers.forEachIndexed { colIndex, header ->
+                        if (colIndex < row.size) {
+                            append("$header，${row[colIndex]}。")
+                        }
+                    }
+                }
+            }
 
-    // 朗读指定行
-    val speakRow = remember { { index: Int ->
-        if (!isTtsReady || index < 0 || index >= document.rows.size) return@remember
+            override fun getCurrentUtteranceId(): String {
+                return "excel_row_$currentRowIndex"
+            }
 
-        currentRowIndex = index
-        val row = document.rows[index]
+            override fun moveToNext() {
+                if (currentRowIndex < document.rows.size - 1) {
+                    currentRowIndex++
+                }
+            }
 
-        // 构建朗读文本：第X行，月份是X，产品是X，销售额是X...
-        val text = buildString {
-            append("第${index + 1}行。")
-            document.headers.forEachIndexed { colIndex, header ->
-                if (colIndex < row.size) {
-                    append("$header，${row[colIndex]}。")
+            override fun moveToPrevious() {
+                if (currentRowIndex > 0) {
+                    currentRowIndex--
                 }
             }
         }
+    }
 
-        tts?.stop()
-        tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "row_$index")
-        isSpeaking = true
-    } }
+    // TTS 控制器
+    val ttsController = rememberTtsController(callbacks = ttsCallbacks)
+
+    // 监听 TTS 状态
+    LaunchedEffect(ttsController) {
+        ttsController.state.collectLatest { state ->
+            isSpeaking = state is TtsState.Speaking
+        }
+    }
 
     // 朗读表头
-    val speakHeaders = remember { {
+    fun speakHeaders() {
         val text = buildString {
             append("表格共有${document.headers.size}列。")
             document.headers.forEachIndexed { index, header ->
@@ -129,59 +136,9 @@ fun ExcelReaderScreen(
             }
             append("共有${document.rows.size}行数据。")
         }
-        tts?.stop()
-        tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "headers")
-        isSpeaking = true
-    } }
-
-    // 暂停朗读
-    val pauseSpeaking = remember { {
-        tts?.stop()
-        isSpeaking = false
-    } }
-
-    // 继续朗读
-    val resumeSpeaking = remember { {
-        speakRow(currentRowIndex)
-    } }
-
-    // 下一行
-    val nextRow = remember { {
-        if (currentRowIndex < document.rows.size - 1) {
-            speakRow(currentRowIndex + 1)
-        }
-    } }
-
-    // 上一行
-    val previousRow = remember { {
-        if (currentRowIndex > 0) {
-            speakRow(currentRowIndex - 1)
-        }
-    } }
-
-    // 设置语速
-    val setSpeechRate = remember { { rate: Float ->
-        speechRate = rate
-        tts?.setSpeechRate(rate)
-    } }
-
-    // TTS 完成监听
-    LaunchedEffect(isTtsReady) {
-        if (isTtsReady) {
-            tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-                override fun onStart(utteranceId: String?) {}
-                override fun onDone(utteranceId: String?) {
-                    if (currentRowIndex < document.rows.size - 1) {
-                        speakRow(currentRowIndex + 1)
-                    } else {
-                        isSpeaking = false
-                    }
-                }
-                override fun onError(utteranceId: String?) {
-                    isSpeaking = false
-                }
-            })
-        }
+        ttsController.stop()
+        // 直接朗读表头，不通过控制器的状态循环
+        ttsController.speakCurrent()
     }
 
     Scaffold(
@@ -205,7 +162,7 @@ fun ExcelReaderScreen(
                 navigationIcon = {
                     IconButton(
                         onClick = {
-                            pauseSpeaking()
+                            ttsController.stop()
                             onBackClick()
                         },
                         modifier = Modifier.semantics {
@@ -259,14 +216,12 @@ fun ExcelReaderScreen(
                 isSpeaking = isSpeaking,
                 currentIndex = currentRowIndex,
                 totalCount = document.rows.size,
-                speechRate = speechRate,
+                speechRate = ttsController.speechRate.collectAsState().value,
                 readMode = readMode,
-                onPrevious = { previousRow() },
-                onPlayPause = {
-                    if (isSpeaking) pauseSpeaking() else resumeSpeaking()
-                },
-                onNext = { nextRow() },
-                onRateChange = { setSpeechRate(it) },
+                onPrevious = { ttsController.speakPrevious() },
+                onPlayPause = { ttsController.togglePlayPause() },
+                onNext = { ttsController.speakNext() },
+                onRateChange = { ttsController.setSpeechRate(it) },
                 onModeChange = { readMode = it }
             )
         }
@@ -279,8 +234,37 @@ fun ExcelReaderScreen(
                 .background(Color(0xFF1A1A1A))
                 .pointerInput(Unit) {
                     detectTapGestures(
-                        onDoubleTap = { nextRow() },
+                        onDoubleTap = { ttsController.speakNext() },
                         onTap = { /* 单击显示当前行信息 */ }
+                    )
+                }
+                .pointerInput(Unit) {
+                    var swipeDirection = -1
+                    detectDragGestures(
+                        onDrag = { change, dragAmount ->
+                            change.consume()
+                            val (x, y) = dragAmount
+                            if (kotlin.math.abs(x) > kotlin.math.abs(y)) {
+                                when {
+                                    x > 0 -> swipeDirection = 0 // 右滑
+                                    x < 0 -> swipeDirection = 1 // 左滑
+                                }
+                            } else {
+                                when {
+                                    y > 0 -> swipeDirection = 2 // 下滑
+                                    y < 0 -> swipeDirection = 3 // 上滑
+                                }
+                            }
+                        },
+                        onDragEnd = {
+                            when (swipeDirection) {
+                                0 -> ttsController.speakPrevious() // 右滑 → 上一行
+                                1 -> ttsController.speakNext()     // 左滑 → 下一行
+                                2 -> { /* 下滑 */ }
+                                3 -> { /* 上滑 */ }
+                            }
+                            swipeDirection = -1
+                        }
                     )
                 }
         ) {
@@ -310,7 +294,10 @@ fun ExcelReaderScreen(
                         isCurrent = isCurrent,
                         isTotalRow = isTotalRow,
                         index = index,
-                        onClick = { speakRow(index) }
+                        onClick = {
+                            currentRowIndex = index
+                            ttsController.speakCurrent()
+                        }
                     )
 
                     if (index < document.rows.size - 1) {
