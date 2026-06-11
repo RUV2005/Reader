@@ -6,7 +6,6 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
@@ -26,8 +25,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.danmo.reader.R
+import com.danmo.reader.common.ReaderControlBar
 import com.danmo.reader.tts.TtsCallbacks
-import com.danmo.reader.tts.TtsController
 import com.danmo.reader.tts.TtsState
 import com.danmo.reader.tts.rememberTtsController
 import kotlinx.coroutines.flow.collectLatest
@@ -39,7 +38,7 @@ data class WordDocument(
     val filePath: String,
     val fileName: String,
     val paragraphs: List<String>,
-    val lastReadIndex: Int = 0
+    val lastReadIndex: Int = 0,
 )
 
 // ==================== 模拟数据 ====================
@@ -61,9 +60,9 @@ val sampleWordDoc = WordDocument(
         "集成系统TTS引擎，支持语速、音调调节。针对长文本进行智能分段，确保朗读流畅自然。",
         "第三章 实施计划",
         "第一阶段：完成基础阅读功能，包括文档打开、文本提取、语音朗读和进度记忆。",
-        "第二阶段：优化无障碍交互，支持TalkBack、高对比度模式、手势控制和语音搜索。"
+        "第二阶段：优化无障碍交互，支持TalkBack、高对比度模式、手势控制和语音搜索。",
     ),
-    lastReadIndex = 0
+    lastReadIndex = 0,
 )
 
 // ==================== Word阅读页面 ====================
@@ -73,7 +72,7 @@ val sampleWordDoc = WordDocument(
 fun WordReaderScreen(
     document: WordDocument = sampleWordDoc,
     onBackClick: () -> Unit = {},
-    onSettingsClick: () -> Unit = {}
+    onSettingsClick: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val scrollState = rememberScrollState()
@@ -135,7 +134,7 @@ fun WordReaderScreen(
                         text = document.fileName,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
-                        maxLines = 1
+                        maxLines = 1,
                     )
                 },
                 navigationIcon = {
@@ -146,12 +145,12 @@ fun WordReaderScreen(
                         },
                         modifier = Modifier.semantics {
                             contentDescription = "返回，当前朗读将暂停"
-                        }
+                        },
                     ) {
                         Icon(
                             painter = painterResource(id = R.drawable.ic_back),
                             contentDescription = null,
-                            modifier = Modifier.size(24.dp)
+                            modifier = Modifier.size(24.dp),
                         )
                     }
                 },
@@ -160,12 +159,12 @@ fun WordReaderScreen(
                         onClick = onSettingsClick,
                         modifier = Modifier.semantics {
                             contentDescription = "阅读设置"
-                        }
+                        },
                     ) {
                         Icon(
                             painter = painterResource(id = R.drawable.ic_settings),
                             contentDescription = null,
-                            modifier = Modifier.size(24.dp)
+                            modifier = Modifier.size(24.dp),
                         )
                     }
                 },
@@ -173,22 +172,28 @@ fun WordReaderScreen(
                     containerColor = Color(0xFF2B579A),
                     titleContentColor = Color.White,
                     navigationIconContentColor = Color.White,
-                    actionIconContentColor = Color.White
-                )
+                    actionIconContentColor = Color.White,
+                ),
             )
         },
         bottomBar = {
+            // 使用通用控制栏（Word 无特殊扩展，纯标准用法）
             ReaderControlBar(
                 isSpeaking = isSpeaking,
                 currentIndex = currentParagraphIndex,
                 totalCount = document.paragraphs.size,
                 speechRate = ttsController.speechRate.collectAsState().value,
+                accentColor = Color(0xFF4A6FA5),
+                progressColor = Color(0xFF4A6FA5),
+                previousLabel = "上段",
+                nextLabel = "下段",
+                positionText = "${currentParagraphIndex + 1}/${document.paragraphs.size}",
                 onPrevious = { ttsController.speakPrevious() },
                 onPlayPause = { ttsController.togglePlayPause() },
                 onNext = { ttsController.speakNext() },
-                onRateChange = { ttsController.setSpeechRate(it) }
+                onRateChange = { ttsController.setSpeechRate(it) },
             )
-        }
+        },
     ) { paddingValues ->
         // 内容区域 - 支持双击/三击手势 + 滑动手势
         Box(
@@ -199,7 +204,7 @@ fun WordReaderScreen(
                 .pointerInput(Unit) {
                     detectTapGestures(
                         onDoubleTap = { ttsController.speakNext() },
-                        onTap = { /* 单击可显示当前段落信息 */ }
+                        onTap = { /* 单击可显示当前段落信息 */ },
                     )
                 }
                 .pointerInput(Unit) {
@@ -208,7 +213,7 @@ fun WordReaderScreen(
                         onDrag = { change, dragAmount ->
                             change.consume()
                             val (x, y) = dragAmount
-                            if (kotlin.math.abs(x) > kotlin.math.abs(y)) {
+                            if (abs(x) > abs(y)) {
                                 when {
                                     x > 0 -> swipeDirection = 0 // 右滑
                                     x < 0 -> swipeDirection = 1 // 左滑
@@ -228,20 +233,20 @@ fun WordReaderScreen(
                                 3 -> { /* 上滑 */ }
                             }
                             swipeDirection = -1
-                        }
+                        },
                     )
-                }
+                },
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .verticalScroll(scrollState)
-                    .padding(horizontal = 20.dp, vertical = 16.dp)
+                    .padding(horizontal = 20.dp, vertical = 16.dp),
             ) {
                 document.paragraphs.forEachIndexed { index, paragraph ->
                     val isCurrent = index == currentParagraphIndex
                     val isHeading = paragraph.startsWith("第") && paragraph.contains("章") ||
-                            paragraph.matches(Regex("""^\\d+\\.\\d+.*"""))
+                            paragraph.matches(Regex("""^\d+\.\d+.*"""))
 
                     ParagraphItem(
                         text = paragraph,
@@ -251,7 +256,7 @@ fun WordReaderScreen(
                         onClick = {
                             currentParagraphIndex = index
                             ttsController.speakCurrent()
-                        }
+                        },
                     )
 
                     if (index < document.paragraphs.size - 1) {
@@ -267,7 +272,7 @@ fun WordReaderScreen(
             CurrentParagraphIndicator(
                 currentIndex = currentParagraphIndex,
                 totalCount = document.paragraphs.size,
-                modifier = Modifier.align(Alignment.CenterEnd)
+                modifier = Modifier.align(Alignment.CenterEnd),
             )
         }
     }
@@ -281,7 +286,7 @@ fun ParagraphItem(
     isCurrent: Boolean,
     isHeading: Boolean,
     index: Int,
-    onClick: () -> Unit
+    onClick: () -> Unit,
 ) {
     val backgroundColor = when {
         isCurrent -> Color(0xFF2B579A).copy(alpha = 0.3f)
@@ -314,7 +319,7 @@ fun ParagraphItem(
             .padding(horizontal = 12.dp, vertical = 10.dp)
             .semantics {
                 contentDescription = if (isHeading) "标题：$text" else "第${index + 1}段，$text"
-            }
+            },
     ) {
         Text(
             text = text,
@@ -322,7 +327,7 @@ fun ParagraphItem(
             fontWeight = fontWeight,
             color = textColor,
             lineHeight = 32.sp,
-            textAlign = TextAlign.Start
+            textAlign = TextAlign.Start,
         )
     }
 }
@@ -333,7 +338,7 @@ fun ParagraphItem(
 fun CurrentParagraphIndicator(
     currentIndex: Int,
     totalCount: Int,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     Column(
         modifier = modifier
@@ -341,181 +346,23 @@ fun CurrentParagraphIndicator(
             .clip(RoundedCornerShape(16.dp))
             .background(Color(0xFF2B579A).copy(alpha = 0.8f))
             .padding(horizontal = 10.dp, vertical = 6.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
             text = "${currentIndex + 1}",
             fontSize = 16.sp,
             fontWeight = FontWeight.Bold,
-            color = Color.White
+            color = Color.White,
         )
         Text(
             text = "/",
             fontSize = 12.sp,
-            color = Color.White.copy(alpha = 0.7f)
+            color = Color.White.copy(alpha = 0.7f),
         )
         Text(
             text = "$totalCount",
             fontSize = 14.sp,
-            color = Color.White.copy(alpha = 0.7f)
-        )
-    }
-}
-
-// ==================== 阅读控制栏 ====================
-
-@Composable
-fun ReaderControlBar(
-    isSpeaking: Boolean,
-    currentIndex: Int,
-    totalCount: Int,
-    speechRate: Float,
-    onPrevious: () -> Unit,
-    onPlayPause: () -> Unit,
-    onNext: () -> Unit,
-    onRateChange: (Float) -> Unit
-) {
-    var showRateMenu by remember { mutableStateOf(false) }
-
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = Color(0xFF2B2B2B),
-        shadowElevation = 8.dp
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 10.dp)
-        ) {
-            // 进度条
-            LinearProgressIndicator(
-                progress = { (currentIndex + 1).toFloat() / totalCount.toFloat() },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(4.dp)
-                    .clip(RoundedCornerShape(2.dp)),
-                color = Color(0xFF4A6FA5),
-                trackColor = Color(0xFF444444)
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // 控制按钮行
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // 语速调节
-                Box {
-                    ControlButton(
-                        iconRes = R.drawable.ic_speed,
-                        label = "${(speechRate * 100).toInt()}%",
-                        onClick = { showRateMenu = !showRateMenu },
-                        buttonDescription = "当前语速${(speechRate * 100).toInt()}%，点击调节"
-                    )
-
-                    // 语速菜单
-                    DropdownMenu(
-                        expanded = showRateMenu,
-                        onDismissRequest = { showRateMenu = false },
-                        modifier = Modifier.background(Color(0xFF333333))
-                    ) {
-                        listOf(0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f).forEach { rate ->
-                            DropdownMenuItem(
-                                text = {
-                                    Text(
-                                        text = "${(rate * 100).toInt()}%",
-                                        color = if (rate == speechRate) Color(0xFF4A6FA5) else Color.White,
-                                        fontWeight = if (rate == speechRate) FontWeight.Bold else FontWeight.Normal
-                                    )
-                                },
-                                onClick = {
-                                    onRateChange(rate)
-                                    showRateMenu = false
-                                }
-                            )
-                        }
-                    }
-                }
-
-                // 上一段
-                ControlButton(
-                    iconRes = R.drawable.ic_previous,
-                    label = "上段",
-                    onClick = onPrevious,
-                    buttonDescription = "朗读上一段"
-                )
-
-                // 播放/暂停
-                Box(
-                    modifier = Modifier
-                        .size(56.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xFF4A6FA5))
-                        .clickable(onClick = onPlayPause)
-                        .semantics {
-                            contentDescription = if (isSpeaking) "暂停朗读" else "开始朗读"
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        painter = painterResource(
-                            id = if (isSpeaking) R.drawable.ic_pause else R.drawable.ic_play
-                        ),
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(28.dp)
-                    )
-                }
-
-                // 下一段
-                ControlButton(
-                    iconRes = R.drawable.ic_next,
-                    label = "下段",
-                    onClick = onNext,
-                    buttonDescription = "朗读下一段"
-                )
-
-                // 段落跳转
-                ControlButton(
-                    iconRes = R.drawable.ic_chapters,
-                    label = "${currentIndex + 1}/$totalCount",
-                    onClick = { /* TODO: 显示段落列表 */ },
-                    buttonDescription = "当前第${currentIndex + 1}段，共$totalCount 段，点击跳转"
-                )
-            }
-        }
-    }
-}
-
-// ==================== 控制按钮 ====================
-
-@Composable
-fun ControlButton(
-    iconRes: Int,
-    label: String,
-    onClick: () -> Unit,
-    buttonDescription: String
-) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier
-            .clickable(onClick = onClick)
-            .semantics { contentDescription = buttonDescription }
-            .padding(horizontal = 8.dp, vertical = 4.dp)
-    ) {
-        Icon(
-            painter = painterResource(id = iconRes),
-            contentDescription = null,
-            tint = Color(0xFFCCCCCC),
-            modifier = Modifier.size(24.dp)
-        )
-        Spacer(modifier = Modifier.height(2.dp))
-        Text(
-            text = label,
-            fontSize = 11.sp,
-            color = Color(0xFFCCCCCC)
+            color = Color.White.copy(alpha = 0.7f),
         )
     }
 }

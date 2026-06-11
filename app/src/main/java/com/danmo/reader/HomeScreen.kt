@@ -14,21 +14,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.danmo.reader.data.repository.RecentFile
+import com.danmo.reader.data.repository.RecentFileRepository
 
 // ==================== 数据模型 ====================
-
-data class Book(
-    val id: String,
-    val title: String,
-    val author: String,
-    val coverUrl: String,
-    val lastReadChapter: String
-)
 
 data class FunctionCardData(
     val title: String,
@@ -39,14 +34,6 @@ data class FunctionCardData(
 
 data class BottomNavItemData(
     val label: String,
-    val iconRes: Int
-)
-
-data class RecentFile(
-    val id: String,
-    val name: String,
-    val type: String, // "word", "excel", "ppt", "pdf"
-    val openTime: String,
     val iconRes: Int
 )
 
@@ -85,46 +72,16 @@ val bottomNavItems = listOf(
     BottomNavItemData("设置", R.drawable.ic_settings_nav)
 )
 
-val recentFiles = listOf(
-    RecentFile(
-        id = "1",
-        name = "项目计划书.docx",
-        type = "word",
-        openTime = "2分钟前",
-        iconRes = R.drawable.ic_word
-    ),
-    RecentFile(
-        id = "2",
-        name = "销售数据报表.xlsx",
-        type = "excel",
-        openTime = "1小时前",
-        iconRes = R.drawable.ic_excel
-    ),
-    RecentFile(
-        id = "3",
-        name = "产品发布会.pptx",
-        type = "ppt",
-        openTime = "昨天",
-        iconRes = R.drawable.ic_ppt
-    ),
-    RecentFile(
-        id = "4",
-        name = "合同协议.pdf",
-        type = "pdf",
-        openTime = "3天前",
-        iconRes = R.drawable.ic_pdf
-    )
-)
-
 // ==================== 主页面 ====================
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     onNavigateToShelf: () -> Unit = {},
-    onNavigateToDiscover: () -> Unit = {},
     onNavigateToProfile: () -> Unit = {},
-    onFunctionCardClick: (String) -> Unit = {}
+    onFunctionCardClick: (String) -> Unit = {},
+    onRecentFileClick: (RecentFile) -> Unit = {},
+    recentFiles: List<RecentFile> = emptyList(),
 ) {
     var selectedTab by remember { mutableIntStateOf(1) }
 
@@ -135,9 +92,9 @@ fun HomeScreen(
                 onTabSelected = { index ->
                     selectedTab = index
                     when (index) {
-                        0 -> onNavigateToShelf()  // 文件页
-                        1 -> { /* 已在首页 */ }   // 首页
-                        2 -> onNavigateToProfile() // 设置页
+                        0 -> onNavigateToShelf()
+                        1 -> { /* 已在首页 */ }
+                        2 -> onNavigateToProfile()
                     }
                 }
             )
@@ -156,7 +113,6 @@ fun HomeScreen(
                 .background(Color(0xFFF5F5F5)),
             contentPadding = PaddingValues(bottom = 16.dp)
         ) {
-            // 顶部 Header
             item {
                 HeaderSection(
                     greeting = "下午好",
@@ -165,7 +121,6 @@ fun HomeScreen(
                 )
             }
 
-            // 功能卡片网格
             item {
                 FunctionCardsGrid(
                     cards = functionCards,
@@ -173,11 +128,10 @@ fun HomeScreen(
                 )
             }
 
-            // 最近打开文件列表
             item {
                 RecentFilesSection(
                     files = recentFiles,
-                    onFileClick = { /* TODO: 打开对应文件 */ }
+                    onFileClick = onRecentFileClick
                 )
             }
         }
@@ -223,7 +177,6 @@ fun HeaderSection(
             )
         }
 
-        // 右上角设置图标
         Box(
             modifier = Modifier
                 .align(Alignment.TopEnd)
@@ -323,7 +276,6 @@ fun FunctionCardItem(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                // 图标背景
                 Box(
                     modifier = Modifier
                         .size(36.dp)
@@ -331,9 +283,6 @@ fun FunctionCardItem(
                         .background(card.backgroundColor),
                     contentAlignment = Alignment.Center
                 ) {
-
-
-
                     Icon(
                         painter = painterResource(id = card.iconRes),
                         contentDescription = card.title,
@@ -444,7 +393,6 @@ fun RecentFilesSection(
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp)
     ) {
-        // 标题行
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -456,26 +404,60 @@ fun RecentFilesSection(
                 fontWeight = FontWeight.Bold,
                 color = Color(0xFF333333)
             )
-            Text(
-                text = "查看全部",
-                fontSize = 14.sp,
-                color = Color(0xFF4A6FA5),
-                modifier = Modifier.clickable { /* TODO: 查看全部 */ }
-            )
+            if (files.isNotEmpty()) {
+                Text(
+                    text = "查看全部",
+                    fontSize = 14.sp,
+                    color = Color(0xFF4A6FA5),
+                    modifier = Modifier.clickable { /* TODO */ }
+                )
+            }
         }
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // 文件列表
-        files.forEach { file ->
-            RecentFileItem(
-                file = file,
-                onClick = { onFileClick(file) }
-            )
-            if (file != files.last()) {
-                Spacer(modifier = Modifier.height(8.dp))
+        if (files.isEmpty()) {
+            EmptyRecentFiles()
+        } else {
+            files.forEach { file ->
+                RecentFileItem(
+                    file = file,
+                    onClick = { onFileClick(file) }
+                )
+                if (file != files.last()) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun EmptyRecentFiles() {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 40.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Icon(
+            painter = painterResource(id = R.drawable.ic_empty_file),
+            contentDescription = null,
+            modifier = Modifier.size(64.dp),
+            tint = Color(0xFFCCCCCC),
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        Text(
+            text = "暂无最近打开的文件",
+            fontSize = 14.sp,
+            color = Color(0xFF999999),
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = "打开文档后将显示在这里",
+            fontSize = 12.sp,
+            color = Color(0xFFBBBBBB),
+        )
     }
 }
 
@@ -484,6 +466,14 @@ fun RecentFileItem(
     file: RecentFile,
     onClick: () -> Unit
 ) {
+    val (iconRes, iconColor, bgColor) = when (file.type) {
+        "word" -> Triple(R.drawable.ic_word, Color(0xFF2B579A), Color(0xFF2B579A).copy(alpha = 0.08f))
+        "excel" -> Triple(R.drawable.ic_excel, Color(0xFF217346), Color(0xFF217346).copy(alpha = 0.08f))
+        "ppt" -> Triple(R.drawable.ic_ppt, Color(0xFFD24726), Color(0xFFD24726).copy(alpha = 0.08f))
+        "pdf" -> Triple(R.drawable.ic_pdf, Color(0xFFB91C1C), Color(0xFFB91C1C).copy(alpha = 0.08f))
+        else -> Triple(R.drawable.ic_file, Color(0xFF666666), Color(0xFF666666).copy(alpha = 0.08f))
+    }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -498,37 +488,23 @@ fun RecentFileItem(
                 .padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // 文件类型图标
             Box(
                 modifier = Modifier
                     .size(44.dp)
                     .clip(RoundedCornerShape(10.dp))
-                    .background(
-                        when (file.type) {
-                            "word" -> Color(0xFF2B579A).copy(alpha = 0.1f)
-                            "excel" -> Color(0xFF217346).copy(alpha = 0.1f)
-                            "ppt" -> Color(0xFFD24726).copy(alpha = 0.1f)
-                            else -> Color(0xFFB91C1C).copy(alpha = 0.1f)
-                        }
-                    ),
+                    .background(bgColor),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    painter = painterResource(id = file.iconRes),
+                    painter = painterResource(id = iconRes),
                     contentDescription = file.type,
                     modifier = Modifier.size(24.dp),
-                    tint = when (file.type) {
-                        "word" -> Color(0xFF2B579A)
-                        "excel" -> Color(0xFF217346)
-                        "ppt" -> Color(0xFFD24726)
-                        else -> Color(0xFFB91C1C)
-                    }
+                    tint = iconColor
                 )
             }
 
             Spacer(modifier = Modifier.width(12.dp))
 
-            // 文件信息
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = file.name,
@@ -539,65 +515,17 @@ fun RecentFileItem(
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
-                    text = file.openTime,
+                    text = file.openTimeDisplay,
                     fontSize = 12.sp,
                     color = Color(0xFF999999)
                 )
             }
 
-            // 右箭头
             Icon(
                 painter = painterResource(id = R.drawable.ic_chevron_right),
                 contentDescription = "打开",
                 modifier = Modifier.size(20.dp),
                 tint = Color(0xFFCCCCCC)
-            )
-        }
-    }
-}
-
-@Composable
-fun QuickActionButton(
-    iconRes: Int,
-    label: String,
-    backgroundColor: Color,
-    iconTint: Color,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit
-) {
-    Card(
-        modifier = modifier
-            .height(80.dp)
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-    ) {
-        Column(
-            modifier = Modifier.fillMaxSize(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(backgroundColor),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    painter = painterResource(id = iconRes),
-                    contentDescription = label,
-                    modifier = Modifier.size(22.dp),
-                    tint = iconTint
-                )
-            }
-            Spacer(modifier = Modifier.height(6.dp))
-            Text(
-                text = label,
-                fontSize = 12.sp,
-                color = Color(0xFF666666),
-                fontWeight = FontWeight.Medium
             )
         }
     }

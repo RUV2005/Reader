@@ -1,87 +1,91 @@
 package com.danmo.reader.filepicker
 
-import android.app.Activity
+import android.content.ContentResolver
+import android.content.Context
 import android.content.Intent
-import android.net.Uri
+import android.provider.OpenableColumns
 import androidx.activity.result.ActivityResultLauncher
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.appcompat.app.AppCompatActivity
-import androidx.fragment.app.Fragment
 import com.danmo.reader.parser.DocumentType
 
-/**
- * 文档选择器
- */
-class DocumentPicker private constructor() {
+object DocumentPicker {
 
-    companion object {
-        // 支持的 MIME 类型
-        private val SUPPORTED_MIME_TYPES = arrayOf(
-            "application/msword",                                    // .doc
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // .docx
-            "application/vnd.ms-excel",                              // .xls
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",     // .xlsx
-            "application/vnd.ms-powerpoint",                       // .ppt
-            "application/vnd.openxmlformats-officedocument.presentationml.presentation", // .pptx
-            "application/pdf"                                      // .pdf
-        )
+    fun createLauncher(
+        activity: androidx.activity.ComponentActivity,
+        onResult: (android.net.Uri?, DocumentType?) -> Unit
+    ): androidx.activity.result.ActivityResultLauncher<Intent> {
+        return activity.registerForActivityResult(
+            androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
+        ) { result ->
+            val uri = result.data?.data
+            // 使用 ContentResolver 查询真实文件名来推断类型
+            val type = uri?.let { inferTypeFromUri(activity, it) }
+            onResult(uri, type)
+        }
+    }
 
-        /**
-         * 创建文档选择器 Launcher（在 Activity 中使用）
-         */
-        fun createLauncher(
-            activity: AppCompatActivity,
-            onResult: (Uri?, DocumentType?) -> Unit
-        ): ActivityResultLauncher<Intent> {
-            return activity.registerForActivityResult(
-                ActivityResultContracts.StartActivityForResult()
-            ) { result ->
-                if (result.resultCode == Activity.RESULT_OK) {
-                    val uri = result.data?.data
-                    val docType = uri?.let {
-                        DocumentType.fromMimeType(activity.contentResolver.getType(it))
-                    }
-                    onResult(uri, docType)
-                } else {
-                    onResult(null, null)
+    fun openPicker(
+        launcher: ActivityResultLauncher<Intent>,
+        docType: DocumentType? = null,
+    ) {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+
+            when (docType) {
+                DocumentType.WORD -> {
+                    type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                }
+                DocumentType.EXCEL -> {
+                    type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                }
+                DocumentType.POWERPOINT -> {
+                    type = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                }
+                DocumentType.PDF -> {
+                    type = "application/pdf"
+                }
+                DocumentType.UNKNOWN, null -> {
+                    type = "*/*"
+                    putExtra(Intent.EXTRA_MIME_TYPES, arrayOf(
+                        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                        "application/pdf",
+                        "application/msword",
+                        "application/vnd.ms-excel",
+                        "application/vnd.ms-powerpoint",
+                    ))
                 }
             }
         }
+        launcher.launch(intent)
+    }
 
-        /**
-         * 创建文档选择器 Launcher（在 Fragment 中使用）
-         */
-        fun createLauncher(
-            fragment: Fragment,
-            onResult: (Uri?, DocumentType?) -> Unit
-        ): ActivityResultLauncher<Intent> {
-            return fragment.registerForActivityResult(
-                ActivityResultContracts.StartActivityForResult()
-            ) { result ->
-                if (result.resultCode == Activity.RESULT_OK) {
-                    val uri = result.data?.data
-                    val docType = uri?.let {
-                        fragment.requireContext().contentResolver.getType(it)?.let { mime ->
-                            DocumentType.fromMimeType(mime)
-                        }
-                    }
-                    onResult(uri, docType)
-                } else {
-                    onResult(null, null)
-                }
+    /**
+     * 使用 ContentResolver 查询文件名，从文件名推断类型
+     */
+    fun inferTypeFromUri(context: Context, uri: android.net.Uri): DocumentType {
+        // 先尝试从 ContentResolver 查询显示名
+        val displayName = try {
+            context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                    if (nameIndex >= 0) cursor.getString(nameIndex) else null
+                } else null
             }
+        } catch (e: Exception) {
+            null
         }
 
-        /**
-         * 打开文档选择器
-         */
-        fun openPicker(launcher: ActivityResultLauncher<Intent>) {
-            val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-                addCategory(Intent.CATEGORY_OPENABLE)
-                type = "*/*"
-                putExtra(Intent.EXTRA_MIME_TYPES, SUPPORTED_MIME_TYPES)
-            }
-            launcher.launch(intent)
+        // 使用查询到的文件名，或回退到 URI 字符串
+        val fileName = displayName ?: uri.toString()
+        val path = fileName.lowercase()
+
+        return when {
+            path.endsWith(".docx") || path.endsWith(".doc") -> DocumentType.WORD
+            path.endsWith(".xlsx") || path.endsWith(".xls") -> DocumentType.EXCEL
+            path.endsWith(".pptx") || path.endsWith(".ppt") -> DocumentType.POWERPOINT
+            path.endsWith(".pdf") -> DocumentType.PDF
+            else -> DocumentType.UNKNOWN
         }
     }
 }
