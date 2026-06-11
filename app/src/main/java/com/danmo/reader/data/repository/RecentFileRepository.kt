@@ -11,7 +11,7 @@ data class RecentFile(
     val id: String,
     val name: String,
     val type: String,
-    val filePath: String,
+    val uri: String,           // 持久化 URI（原始 SAF URI）
     val openTimeDisplay: String,
 )
 
@@ -23,15 +23,15 @@ class RecentFileRepository(context: android.content.Context) {
     }
 
     suspend fun addRecentFile(
-        filePath: String,
+        uri: String,             // 原始 SAF URI
         fileName: String,
         type: String,
     ) {
         val entity = RecentFileEntity(
-            id = filePath, // 用路径作为唯一ID
+            id = uri,            // URI 作为唯一 ID
             name = fileName,
             type = type,
-            filePath = filePath,
+            filePath = uri,      // 存 URI 而不是本地路径
             openTime = System.currentTimeMillis(),
         )
         dao.insert(entity)
@@ -42,7 +42,7 @@ class RecentFileRepository(context: android.content.Context) {
             id = id,
             name = name,
             type = type,
-            filePath = filePath,
+            uri = filePath,
             openTimeDisplay = formatTime(openTime),
         )
     }

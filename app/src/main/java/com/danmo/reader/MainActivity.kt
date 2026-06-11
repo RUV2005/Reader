@@ -2,7 +2,6 @@ package com.danmo.reader
 
 import android.net.Uri
 import android.os.Bundle
-import android.provider.OpenableColumns
 import android.util.Log
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.compose.setContent
@@ -21,6 +20,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.lifecycleScope
+import com.danmo.reader.data.local.UriPermissionManager
 import com.danmo.reader.data.repository.RecentFileRepository
 import com.danmo.reader.excel.ExcelDocument
 import com.danmo.reader.excel.ExcelReaderScreen
@@ -89,9 +89,14 @@ class MainActivity : AppCompatActivity() {
             }
         )
 
-        documentPickerLauncher = DocumentPicker.createLauncher(this) { uri: Uri?, docType: DocumentType? ->
-            Log.d(TAG, "DocumentPicker回调: uri=$uri, docType=$docType")
-            uri?.let { handleSelectedDocument(it, docType) }
+        documentPickerLauncher = DocumentPicker.createLauncher(this) { uri: Uri?, docType: DocumentType?, fileName: String? ->
+            Log.d(TAG, "DocumentPicker回调: uri=$uri, docType=$docType, fileName=$fileName")
+            if (uri != null && docType != null && docType != DocumentType.UNKNOWN) {
+                // 持久化 URI 权限
+                UriPermissionManager.persistUriPermission(this, uri)
+                // 解析并打开
+                handleSelectedDocument(uri, docType, fileName)
+            }
         }
 
         setContent {
@@ -137,43 +142,20 @@ class MainActivity : AppCompatActivity() {
                                 }
                             },
                             onRecentFileClick = { file ->
-                                when (file.type) {
-                                    "word" -> pushScreen(
-                                        Screen.WordReader(
-                                            WordDocument(
-                                                filePath = file.filePath,
-                                                fileName = file.name,
-                                                paragraphs = listOf("重新加载中..."),
-                                                lastReadIndex = 0,
-                                            )
-                                        )
-                                    )
-                                    "excel" -> pushScreen(
-                                        Screen.ExcelReader(createSampleExcelDoc())
-                                    )
-                                    "ppt" -> pushScreen(
-                                        Screen.PptReader(
-                                            PptDocument(
-                                                filePath = file.filePath,
-                                                fileName = file.name,
-                                                totalSlides = 1,
-                                                slides = emptyList(),
-                                                lastReadSlide = 0,
-                                            )
-                                        )
-                                    )
-                                    "pdf" -> pushScreen(
-                                        Screen.PdfReader(
-                                            PdfDocument(
-                                                filePath = file.filePath,
-                                                fileName = file.name,
-                                                totalPages = 1,
-                                                pages = emptyList(),
-                                                lastReadPage = 0,
-                                                lastReadParagraph = 0,
-                                            )
-                                        )
-                                    )
+                                Log.d(TAG, "点击最近文件: ${file.name}, type=${file.type}, uri=${file.uri}")
+                                val uri = Uri.parse(file.uri)
+                                // 检查权限是否还有效
+                                if (UriPermissionManager.hasUriPermission(this, uri)) {
+                                    val docType = when (file.type) {
+                                        "word" -> DocumentType.WORD
+                                        "excel" -> DocumentType.EXCEL
+                                        "ppt" -> DocumentType.POWERPOINT
+                                        "pdf" -> DocumentType.PDF
+                                        else -> DocumentType.UNKNOWN
+                                    }
+                                    handleSelectedDocument(uri, docType, file.name)
+                                } else {
+                                    parseError = "文件访问权限已失效，请重新选择文件"
                                 }
                             },
                             recentFiles = recentFiles,
@@ -273,25 +255,11 @@ class MainActivity : AppCompatActivity() {
         DocumentPicker.openPicker(documentPickerLauncher, type)
     }
 
-    private fun handleSelectedDocument(uri: Uri, docType: DocumentType?) {
-        Log.d(TAG, "handleSelectedDocument: uri=$uri")
-        Log.d(TAG, "handleSelectedDocument: docType=$docType")
+    private fun handleSelectedDocument(uri: Uri, docType: DocumentType, fileName: String?) {
+        Log.d(TAG, "handleSelectedDocument: uri=$uri, docType=$docType, fileName=$fileName")
 
-        // 使用 ContentResolver 查询文件名来推断类型
-        val inferredType = inferTypeFromUri(uri)
-        Log.d(TAG, "handleSelectedDocument: inferredType=$inferredType")
-
-        // 优先使用回调的类型（如果不是 UNKNOWN），否则使用推断的
-        val actualType = if (docType != null && docType != DocumentType.UNKNOWN) {
-            docType
-        } else {
-            inferredType
-        }
-        Log.d(TAG, "handleSelectedDocument: actualType=$actualType")
-
-        if (actualType == DocumentType.UNKNOWN) {
-            Log.e(TAG, "handleSelectedDocument: 无法识别文件类型")
-            parseError = "不支持的文件格式\n请确保选择 .docx, .xlsx, .pptx 或 .pdf 文件"
+        if (docType == DocumentType.UNKNOWN) {
+            parseError = "不支持的文件格式"
             return
         }
 
@@ -300,20 +268,20 @@ class MainActivity : AppCompatActivity() {
 
         lifecycleScope.launch {
             try {
-                when (actualType) {
+                when (docType) {
                     DocumentType.WORD -> {
                         when (val result = WordParser().parse(this@MainActivity, uri)) {
                             is ParseResult.Success -> {
                                 recentFileRepository.addRecentFile(
-                                    filePath = uri.toString(),
-                                    fileName = result.data.fileName,
+                                    uri = uri.toString(),
+                                    fileName = fileName ?: result.data.fileName,
                                     type = "word",
                                 )
                                 pushScreen(
                                     Screen.WordReader(
                                         WordDocument(
                                             filePath = uri.toString(),
-                                            fileName = result.data.fileName,
+                                            fileName = fileName ?: result.data.fileName,
                                             paragraphs = result.data.paragraphs.map { it.text },
                                             lastReadIndex = 0,
                                         )
@@ -327,8 +295,8 @@ class MainActivity : AppCompatActivity() {
                         when (val result = ExcelParser().parse(this@MainActivity, uri)) {
                             is ParseResult.Success -> {
                                 recentFileRepository.addRecentFile(
-                                    filePath = uri.toString(),
-                                    fileName = result.data.fileName,
+                                    uri = uri.toString(),
+                                    fileName = fileName ?: result.data.fileName,
                                     type = "excel",
                                 )
                                 val sheet = result.data.sheets.firstOrNull()
@@ -337,7 +305,7 @@ class MainActivity : AppCompatActivity() {
                                         if (sheet != null) {
                                             ExcelDocument(
                                                 filePath = uri.toString(),
-                                                fileName = result.data.fileName,
+                                                fileName = fileName ?: result.data.fileName,
                                                 sheetName = sheet.name,
                                                 headers = sheet.headers,
                                                 rows = sheet.rows.map { it.cells },
@@ -354,15 +322,15 @@ class MainActivity : AppCompatActivity() {
                         when (val result = PptParser().parse(this@MainActivity, uri)) {
                             is ParseResult.Success -> {
                                 recentFileRepository.addRecentFile(
-                                    filePath = uri.toString(),
-                                    fileName = result.data.fileName,
+                                    uri = uri.toString(),
+                                    fileName = fileName ?: result.data.fileName,
                                     type = "ppt",
                                 )
                                 pushScreen(
                                     Screen.PptReader(
                                         PptDocument(
                                             filePath = uri.toString(),
-                                            fileName = result.data.fileName,
+                                            fileName = fileName ?: result.data.fileName,
                                             totalSlides = result.data.totalSlides,
                                             slides = result.data.slides.map {
                                                 com.danmo.reader.ppt.PptSlide(
@@ -384,15 +352,15 @@ class MainActivity : AppCompatActivity() {
                         when (val result = PdfParser().parse(this@MainActivity, uri)) {
                             is ParseResult.Success -> {
                                 recentFileRepository.addRecentFile(
-                                    filePath = uri.toString(),
-                                    fileName = result.data.fileName,
+                                    uri = uri.toString(),
+                                    fileName = fileName ?: result.data.fileName,
                                     type = "pdf",
                                 )
                                 pushScreen(
                                     Screen.PdfReader(
                                         PdfDocument(
                                             filePath = uri.toString(),
-                                            fileName = result.data.fileName,
+                                            fileName = fileName ?: result.data.fileName,
                                             totalPages = result.data.totalPages,
                                             pages = result.data.pages.map {
                                                 com.danmo.reader.pdf.PdfPage(
@@ -419,40 +387,6 @@ class MainActivity : AppCompatActivity() {
             } finally {
                 isLoading = false
             }
-        }
-    }
-
-    /**
-     * 使用 ContentResolver 查询文件名推断类型
-     */
-    private fun inferTypeFromUri(uri: Uri): DocumentType {
-        // 先尝试从 ContentResolver 查询显示名
-        val displayName = try {
-            contentResolver.query(uri, null, null, null, null)?.use { cursor ->
-                if (cursor.moveToFirst()) {
-                    val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-                    if (nameIndex >= 0) {
-                        val name = cursor.getString(nameIndex)
-                        Log.d(TAG, "ContentResolver查询到文件名: $name")
-                        name
-                    } else null
-                } else null
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "ContentResolver查询失败", e)
-            null
-        }
-
-        // 使用查询到的文件名，或回退到 URI 字符串
-        val fileName = (displayName ?: uri.toString()).lowercase()
-        Log.d(TAG, "inferTypeFromUri: 用于匹配的文件名=$fileName")
-
-        return when {
-            fileName.endsWith(".docx") || fileName.endsWith(".doc") -> DocumentType.WORD
-            fileName.endsWith(".xlsx") || fileName.endsWith(".xls") -> DocumentType.EXCEL
-            fileName.endsWith(".pptx") || fileName.endsWith(".ppt") -> DocumentType.POWERPOINT
-            fileName.endsWith(".pdf") -> DocumentType.PDF
-            else -> DocumentType.UNKNOWN
         }
     }
 
