@@ -13,6 +13,14 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "1.0"
+
+        javaCompileOptions {
+            annotationProcessorOptions {
+                arguments += mapOf(
+                    "room.schemaLocation" to "$projectDir/schemas"
+                )
+            }
+        }
     }
 
     buildTypes {
@@ -51,36 +59,33 @@ dependencies {
     implementation(libs.androidx.material3)
 
     // AppCompat 和 Fragment（DocumentPicker 需要）
-    implementation("androidx.appcompat:appcompat:1.7.0")
-    implementation("androidx.fragment:fragment-ktx:1.8.0")
+    implementation(libs.androidx.appcompat)
+    implementation(libs.androidx.fragment.ktx)
 
     // Apache POI - 文档解析
-    implementation("org.apache.poi:poi:5.2.5")
-    implementation("org.apache.poi:poi-ooxml:5.2.5")
-    implementation("org.apache.poi:poi-scratchpad:5.2.5")
+    implementation(libs.poi)
+    implementation(libs.poi.ooxml)
+    implementation(libs.poi.scratchpad)
 
     // POI 依赖的 XML 库
-    implementation("org.apache.xmlbeans:xmlbeans:5.1.1")
-    implementation("org.apache.commons:commons-compress:1.26.0")
-    implementation("commons-codec:commons-codec:1.16.0")
-    implementation("org.apache.commons:commons-collections4:4.4")
-    implementation("org.apache.commons:commons-math3:3.6.1")
-    implementation("com.zaxxer:SparseBitSet:1.3")
+    implementation(libs.xmlbeans)
+    implementation(libs.commons.compress)
+    implementation(libs.commons.codec)
+    implementation(libs.commons.collections4)
+    implementation(libs.commons.math3)
+    implementation(libs.sparsebitset)
 
     // PDF 解析 - PdfBox
-    implementation("com.tom-roush:pdfbox-android:2.0.27.0")
-    val roomVersion = "2.6.1"
-    implementation("androidx.room:room-runtime:$roomVersion")
-    implementation("androidx.room:room-ktx:$roomVersion")
-    ksp("androidx.room:room-compiler:$roomVersion")
+    implementation(libs.tom.roush.pdfbox.android)
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
+    ksp(libs.androidx.room.compiler)
 
     // 协程
     implementation(libs.kotlinx.coroutines.android)
 
     // 文件选择
     implementation(libs.androidx.documentfile)
-
-
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
