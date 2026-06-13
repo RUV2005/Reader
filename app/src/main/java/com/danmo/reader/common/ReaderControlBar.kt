@@ -100,7 +100,7 @@ private fun PlayPauseButton(
 
 // ==================== 语速选择器 ====================
 
-private val SPEECH_RATES = listOf(0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f)
+private val SPEECH_RATES = listOf(0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f, 3.0f, 4.0f, 5.0f)
 
 @Composable
 private fun SpeedSelector(

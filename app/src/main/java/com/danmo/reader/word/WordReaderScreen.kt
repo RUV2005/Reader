@@ -5,9 +5,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -15,7 +16,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -26,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.danmo.reader.R
 import com.danmo.reader.common.ReaderControlBar
+import com.danmo.reader.data.repository.SettingsRepository
 import com.danmo.reader.tts.TtsCallbacks
 import com.danmo.reader.tts.TtsState
 import com.danmo.reader.tts.rememberTtsController
@@ -75,11 +79,28 @@ fun WordReaderScreen(
     onSettingsClick: () -> Unit = {},
 ) {
     val context = LocalContext.current
-    val scrollState = rememberScrollState()
+    val settingsRepository = remember(context) { SettingsRepository(context) }
+
+    // 从设置读取字体大小
+    var fontSize by remember { mutableIntStateOf(18) }
+    LaunchedEffect(Unit) {
+        settingsRepository.fontSize.collect { size ->
+            fontSize = size
+        }
+    }
 
     // 当前段落索引
     var currentParagraphIndex by remember { mutableIntStateOf(document.lastReadIndex) }
     var isSpeaking by remember { mutableStateOf(false) }
+
+    // LazyListState 用于精确控制滚动位置
+    val lazyListState = rememberLazyListState()
+
+    // 获取视口高度，用于计算居中偏移
+    var viewportHeight by remember { mutableIntStateOf(0) }
+
+    // 记录每个 item 的高度
+    val itemHeights = remember { mutableStateMapOf<Int, Int>() }
 
     // TTS 回调实现
     val ttsCallbacks = remember(document) {
@@ -120,10 +141,26 @@ fun WordReaderScreen(
         }
     }
 
-    // 自动滚动到当前段落
+    // 核心：当前段落变化时，滚动到屏幕中央
     LaunchedEffect(currentParagraphIndex) {
-        // 保存进度（实际应用应写入数据库）
-        // saveProgress(document.filePath, currentParagraphIndex)
+        // 等待布局完成
+        kotlinx.coroutines.delay(50)
+
+        val itemHeight = itemHeights[currentParagraphIndex] ?: 0
+        val viewportCenter = viewportHeight / 2
+
+        // 使用 animateScrollToItem + scrollOffset 实现居中
+        // scrollOffset 为负值，表示将 item 向上推
+        val scrollOffset = if (itemHeight > 0) {
+            -viewportCenter + itemHeight / 2
+        } else {
+            -viewportCenter + 40 // 默认估算
+        }
+
+        lazyListState.animateScrollToItem(
+            index = currentParagraphIndex,
+            scrollOffset = scrollOffset
+        )
     }
 
     Scaffold(
@@ -177,7 +214,6 @@ fun WordReaderScreen(
             )
         },
         bottomBar = {
-            // 使用通用控制栏（Word 无特殊扩展，纯标准用法）
             ReaderControlBar(
                 isSpeaking = isSpeaking,
                 currentIndex = currentParagraphIndex,
@@ -195,16 +231,19 @@ fun WordReaderScreen(
             )
         },
     ) { paddingValues ->
-        // 内容区域 - 支持双击/三击手势 + 滑动手势
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
                 .background(Color(0xFF1A1A1A))
+                // 测量视口高度
+                .onGloballyPositioned { coordinates ->
+                    viewportHeight = coordinates.size.height
+                }
                 .pointerInput(Unit) {
                     detectTapGestures(
                         onDoubleTap = { ttsController.speakNext() },
-                        onTap = { /* 单击可显示当前段落信息 */ },
+                        onTap = { },
                     )
                 }
                 .pointerInput(Unit) {
@@ -215,60 +254,63 @@ fun WordReaderScreen(
                             val (x, y) = dragAmount
                             if (abs(x) > abs(y)) {
                                 when {
-                                    x > 0 -> swipeDirection = 0 // 右滑
-                                    x < 0 -> swipeDirection = 1 // 左滑
+                                    x > 0 -> swipeDirection = 0
+                                    x < 0 -> swipeDirection = 1
                                 }
                             } else {
                                 when {
-                                    y > 0 -> swipeDirection = 2 // 下滑
-                                    y < 0 -> swipeDirection = 3 // 上滑
+                                    y > 0 -> swipeDirection = 2
+                                    y < 0 -> swipeDirection = 3
                                 }
                             }
                         },
                         onDragEnd = {
                             when (swipeDirection) {
-                                0 -> ttsController.speakPrevious() // 右滑 → 上一段
-                                1 -> ttsController.speakNext()     // 左滑 → 下一段
-                                2 -> { /* 下滑 */ }
-                                3 -> { /* 上滑 */ }
+                                0 -> ttsController.speakPrevious()
+                                1 -> ttsController.speakNext()
+                                2 -> { }
+                                3 -> { }
                             }
                             swipeDirection = -1
                         },
                     )
                 },
         ) {
-            Column(
+            LazyColumn(
+                state = lazyListState,
                 modifier = Modifier
                     .fillMaxSize()
-                    .verticalScroll(scrollState)
                     .padding(horizontal = 20.dp, vertical = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                document.paragraphs.forEachIndexed { index, paragraph ->
+                itemsIndexed(
+                    items = document.paragraphs,
+                    key = { index, _ -> "para_$index" }
+                ) { index, paragraph ->
                     val isCurrent = index == currentParagraphIndex
                     val isHeading = paragraph.startsWith("第") && paragraph.contains("章") ||
                             paragraph.matches(Regex("""^\d+\.\d+.*"""))
 
-                    ParagraphItem(
-                        text = paragraph,
-                        isCurrent = isCurrent,
-                        isHeading = isHeading,
-                        index = index,
-                        onClick = {
-                            currentParagraphIndex = index
-                            ttsController.speakCurrent()
-                        },
-                    )
-
-                    if (index < document.paragraphs.size - 1) {
-                        Spacer(modifier = Modifier.height(16.dp))
+                    Box(
+                        modifier = Modifier.onGloballyPositioned { coordinates ->
+                            itemHeights[index] = coordinates.size.height
+                        }
+                    ) {
+                        ParagraphItem(
+                            text = paragraph,
+                            isCurrent = isCurrent,
+                            isHeading = isHeading,
+                            index = index,
+                            fontSize = fontSize,
+                            onClick = {
+                                currentParagraphIndex = index
+                                ttsController.speakCurrent()
+                            },
+                        )
                     }
                 }
-
-                // 底部留白，避免被控制栏遮挡
-                Spacer(modifier = Modifier.height(80.dp))
             }
 
-            // 当前段落指示器（悬浮在右侧）
             CurrentParagraphIndicator(
                 currentIndex = currentParagraphIndex,
                 totalCount = document.paragraphs.size,
@@ -286,6 +328,7 @@ fun ParagraphItem(
     isCurrent: Boolean,
     isHeading: Boolean,
     index: Int,
+    fontSize: Int,
     onClick: () -> Unit,
 ) {
     val backgroundColor = when {
@@ -294,14 +337,14 @@ fun ParagraphItem(
     }
 
     val textColor = when {
-        isCurrent -> Color(0xFFFFFF00) // 高亮黄色
-        isHeading -> Color(0xFF6B8CBB) // 标题蓝色
+        isCurrent -> Color(0xFFFFFF00)
+        isHeading -> Color(0xFF6B8CBB)
         else -> Color.White
     }
 
-    val fontSize = when {
-        isHeading -> 22.sp
-        else -> 20.sp
+    val fontSizeSp = when {
+        isHeading -> (fontSize + 4).sp
+        else -> fontSize.sp
     }
 
     val fontWeight = when {
@@ -323,10 +366,10 @@ fun ParagraphItem(
     ) {
         Text(
             text = text,
-            fontSize = fontSize,
+            fontSize = fontSizeSp,
             fontWeight = fontWeight,
             color = textColor,
-            lineHeight = 32.sp,
+            lineHeight = (fontSize + 12).sp,
             textAlign = TextAlign.Start,
         )
     }

@@ -1,13 +1,19 @@
 package com.danmo.reader.tts
 
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
+import com.danmo.reader.data.repository.SettingsRepository
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import java.util.*
 
 /**
@@ -23,30 +29,29 @@ sealed class TtsState {
 
 /**
  * TTS 控制回调接口
- * 由各个 ReaderScreen 实现，处理朗读完成后的业务逻辑（如自动下一项）
  */
 interface TtsCallbacks {
-    /** 朗读完成时调用，返回是否继续朗读下一项 */
+    /** 检查是否还有更多内容可朗读 */
     fun onUtteranceDone(): Boolean
-    /** 获取当前项的朗读文本 */
+    /** 获取当前位置的朗读文本 */
     fun getCurrentText(): String
-    /** 获取当前项的唯一标识 */
+    /** 获取当前朗读段的唯一标识 */
     fun getCurrentUtteranceId(): String
-    /** 移动到下一项 */
+    /** 移动到下一段/下一个位置 */
     fun moveToNext()
-    /** 移动到上一项 */
+    /** 移动到上一段/上一个位置 */
     fun moveToPrevious()
 }
 
 /**
  * TTS 控制器
- * 封装 TTS 初始化、状态管理、语速控制、播放/暂停/跳转等通用逻辑
  */
 class TtsController(
     private val context: Context,
     private val callbacks: TtsCallbacks
 ) {
     private var tts: TextToSpeech? = null
+    private val settingsRepository = SettingsRepository(context)
 
     private val _state = MutableStateFlow<TtsState>(TtsState.Idle)
     val state: StateFlow<TtsState> = _state.asStateFlow()
@@ -57,8 +62,18 @@ class TtsController(
     private val _isReady = MutableStateFlow(false)
     val isReady: StateFlow<Boolean> = _isReady.asStateFlow()
 
+    // 标记当前是否为一次性朗读模式（不触发回调循环）
+    private var isOneShotMode = false
+
     init {
         initializeTts()
+        // 从设置读取默认语速
+        CoroutineScope(Dispatchers.Main).launch {
+            settingsRepository.speechRate.collect { rate ->
+                _speechRate.value = rate
+                tts?.setSpeechRate(rate)
+            }
+        }
     }
 
     private fun initializeTts() {
@@ -85,10 +100,18 @@ class TtsController(
             }
 
             override fun onDone(utteranceId: String?) {
+                if (isOneShotMode) {
+                    // 一次性朗读完成，恢复状态，不触发回调循环
+                    isOneShotMode = false
+                    _state.value = TtsState.Ready
+                    return
+                }
+
                 val shouldContinue = callbacks.onUtteranceDone()
                 if (shouldContinue) {
-                    // 延迟一小段时间再播放下一个，避免连读太快
-                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                    // 修复：先移动到下一段，再朗读
+                    callbacks.moveToNext()
+                    Handler(Looper.getMainLooper()).postDelayed({
                         speakCurrent()
                     }, 300)
                 } else {
@@ -97,10 +120,12 @@ class TtsController(
             }
 
             override fun onError(utteranceId: String?) {
+                isOneShotMode = false
                 _state.value = TtsState.Error("朗读出错")
             }
 
             override fun onStop(utteranceId: String?, interrupted: Boolean) {
+                isOneShotMode = false
                 if (interrupted) {
                     _state.value = TtsState.Paused
                 }
@@ -109,19 +134,19 @@ class TtsController(
     }
 
     /**
-     * 朗读当前项
+     * 朗读当前位置的内容（通过回调获取文本，支持自动下一段）
      */
     fun speakCurrent() {
         if (!_isReady.value) return
 
         val text = callbacks.getCurrentText()
         if (text.isBlank()) {
-            // 空内容自动跳过
             callbacks.moveToNext()
             speakCurrent()
             return
         }
 
+        isOneShotMode = false
         tts?.stop()
         tts?.speak(
             text,
@@ -132,8 +157,22 @@ class TtsController(
     }
 
     /**
-     * 播放/暂停切换
+     * 一次性朗读指定文本，不触发回调的自动下一段逻辑
      */
+    fun speak(text: String) {
+        if (!_isReady.value) return
+        if (text.isBlank()) return
+
+        isOneShotMode = true
+        tts?.stop()
+        tts?.speak(
+            text,
+            TextToSpeech.QUEUE_FLUSH,
+            null,
+            "one_shot_${System.currentTimeMillis()}"
+        )
+    }
+
     fun togglePlayPause() {
         when (_state.value) {
             is TtsState.Speaking -> pause()
@@ -144,49 +183,32 @@ class TtsController(
         }
     }
 
-    /**
-     * 暂停朗读
-     */
     fun pause() {
         tts?.stop()
         _state.value = TtsState.Paused
     }
 
-    /**
-     * 停止朗读并重置状态
-     */
     fun stop() {
+        isOneShotMode = false
         tts?.stop()
         _state.value = TtsState.Ready
     }
 
-    /**
-     * 朗读上一项
-     */
     fun speakPrevious() {
         callbacks.moveToPrevious()
         speakCurrent()
     }
 
-    /**
-     * 朗读下一项
-     */
     fun speakNext() {
         callbacks.moveToNext()
         speakCurrent()
     }
 
-    /**
-     * 设置语速
-     */
     fun setSpeechRate(rate: Float) {
         _speechRate.value = rate.coerceIn(0.5f, 2.0f)
         tts?.setSpeechRate(_speechRate.value)
     }
 
-    /**
-     * 释放资源
-     */
     fun shutdown() {
         tts?.stop()
         tts?.shutdown()
@@ -196,10 +218,6 @@ class TtsController(
     }
 }
 
-/**
- * Compose remember 版本的 TTS 控制器
- * 自动处理生命周期（初始化 + 销毁）
- */
 @Composable
 fun rememberTtsController(
     callbacks: TtsCallbacks

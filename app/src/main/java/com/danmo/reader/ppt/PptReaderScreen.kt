@@ -5,10 +5,11 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -16,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
@@ -110,12 +112,15 @@ fun PptReaderScreen(
     onSettingsClick: () -> Unit = {},
 ) {
     val context = LocalContext.current
-    val scrollState = rememberScrollState()
 
-    // 当前幻灯片索引
     var currentSlideIndex by remember { mutableIntStateOf(document.lastReadSlide) }
     var isSpeaking by remember { mutableStateOf(false) }
     var showNotes by remember { mutableStateOf(false) }
+
+    // LazyListState 用于精确控制滚动位置
+    val lazyListState = rememberLazyListState()
+    var viewportHeight by remember { mutableIntStateOf(0) }
+    val itemHeights = remember { mutableStateMapOf<Int, Int>() }
 
     // TTS 回调实现
     val ttsCallbacks = remember(document, showNotes) {
@@ -155,14 +160,39 @@ fun PptReaderScreen(
         }
     }
 
-    // TTS 控制器
     val ttsController = rememberTtsController(callbacks = ttsCallbacks)
 
-    // 监听 TTS 状态
     LaunchedEffect(ttsController) {
         ttsController.state.collectLatest { state ->
             isSpeaking = state is TtsState.Speaking
         }
+    }
+
+    // 修复：showNotes 变化时如果正在朗读，停止并重新朗读当前页
+    LaunchedEffect(showNotes) {
+        if (isSpeaking) {
+            ttsController.stop()
+            kotlinx.coroutines.delay(200)
+            ttsController.speakCurrent()
+        }
+    }
+
+    // 核心：当前幻灯片变化时，滚动到屏幕中央
+    LaunchedEffect(currentSlideIndex) {
+        kotlinx.coroutines.delay(50)
+
+        val itemHeight = itemHeights[currentSlideIndex] ?: 0
+        val viewportCenter = viewportHeight / 2
+        val scrollOffset = if (itemHeight > 0) {
+            -viewportCenter + itemHeight / 2
+        } else {
+            -viewportCenter + 40
+        }
+
+        lazyListState.animateScrollToItem(
+            index = currentSlideIndex,
+            scrollOffset = scrollOffset
+        )
     }
 
     Scaffold(
@@ -201,7 +231,6 @@ fun PptReaderScreen(
                     }
                 },
                 actions = {
-                    // 备注显示切换
                     IconButton(
                         onClick = { showNotes = !showNotes },
                         modifier = Modifier.semantics {
@@ -238,7 +267,6 @@ fun PptReaderScreen(
             )
         },
         bottomBar = {
-            // 使用通用控制栏（PPT 无特殊扩展，纯标准用法）
             ReaderControlBar(
                 isSpeaking = isSpeaking,
                 currentIndex = currentSlideIndex,
@@ -261,10 +289,13 @@ fun PptReaderScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
                 .background(Color(0xFF1A1A1A))
+                .onGloballyPositioned { coordinates ->
+                    viewportHeight = coordinates.size.height
+                }
                 .pointerInput(Unit) {
                     detectTapGestures(
                         onDoubleTap = { ttsController.speakNext() },
-                        onTap = { /* 单击显示当前页信息 */ },
+                        onTap = { },
                     )
                 }
                 .pointerInput(Unit) {
@@ -275,56 +306,62 @@ fun PptReaderScreen(
                             val (x, y) = dragAmount
                             if (abs(x) > abs(y)) {
                                 when {
-                                    x > 0 -> swipeDirection = 0 // 右滑
-                                    x < 0 -> swipeDirection = 1 // 左滑
+                                    x > 0 -> swipeDirection = 0
+                                    x < 0 -> swipeDirection = 1
                                 }
                             } else {
                                 when {
-                                    y > 0 -> swipeDirection = 2 // 下滑
-                                    y < 0 -> swipeDirection = 3 // 上滑
+                                    y > 0 -> swipeDirection = 2
+                                    y < 0 -> swipeDirection = 3
                                 }
                             }
                         },
                         onDragEnd = {
                             when (swipeDirection) {
-                                0 -> ttsController.speakPrevious() // 右滑 → 上一页
-                                1 -> ttsController.speakNext()     // 左滑 → 下一页
-                                2 -> { /* 下滑 */ }
-                                3 -> { /* 上滑 */ }
+                                0 -> ttsController.speakPrevious()
+                                1 -> ttsController.speakNext()
+                                2 -> { }
+                                3 -> { }
                             }
                             swipeDirection = -1
                         },
                     )
                 },
         ) {
-            Column(
+            LazyColumn(
+                state = lazyListState,
                 modifier = Modifier
                     .fillMaxSize()
-                    .verticalScroll(scrollState)
                     .padding(horizontal = 16.dp, vertical = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                document.slides.forEachIndexed { index, slide ->
+                itemsIndexed(
+                    items = document.slides,
+                    key = { index, _ -> "ppt_slide_$index" }
+                ) { index, slide ->
                     val isCurrent = index == currentSlideIndex
 
-                    SlideCard(
-                        slide = slide,
-                        isCurrent = isCurrent,
-                        showNotes = showNotes,
-                        onClick = {
-                            currentSlideIndex = index
-                            ttsController.speakCurrent()
-                        },
-                    )
-
-                    if (index < document.slides.size - 1) {
-                        Spacer(modifier = Modifier.height(16.dp))
+                    Box(
+                        modifier = Modifier.onGloballyPositioned { coordinates ->
+                            itemHeights[index] = coordinates.size.height
+                        }
+                    ) {
+                        SlideCard(
+                            slide = slide,
+                            isCurrent = isCurrent,
+                            showNotes = showNotes,
+                            onClick = {
+                                currentSlideIndex = index
+                                ttsController.speakCurrent()
+                            },
+                        )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(80.dp))
+                // 底部留白
+                item { Spacer(modifier = Modifier.height(80.dp)) }
             }
 
-            // 当前页指示器
             CurrentSlideIndicator(
                 currentIndex = currentSlideIndex,
                 totalCount = document.slides.size,
@@ -373,12 +410,10 @@ fun SlideCard(
                 .fillMaxWidth()
                 .padding(16.dp),
         ) {
-            // 页码和标题行
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                // 页码圆形标记
                 Box(
                     modifier = Modifier
                         .size(32.dp)
@@ -406,7 +441,6 @@ fun SlideCard(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // 内容列表
             slide.content.forEach { content ->
                 Row(
                     modifier = Modifier
@@ -414,7 +448,6 @@ fun SlideCard(
                         .padding(vertical = 4.dp),
                     verticalAlignment = Alignment.Top,
                 ) {
-                    // 项目符号
                     Box(
                         modifier = Modifier
                             .size(6.dp)
@@ -435,7 +468,6 @@ fun SlideCard(
                 }
             }
 
-            // 备注区域
             if (showNotes && slide.notes.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(12.dp))
 

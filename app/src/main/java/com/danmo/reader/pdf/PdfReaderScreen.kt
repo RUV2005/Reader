@@ -5,9 +5,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -15,6 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
@@ -112,19 +114,18 @@ fun PdfReaderScreen(
     onSettingsClick: () -> Unit = {},
 ) {
     val context = LocalContext.current
-    val scrollState = rememberScrollState()
 
     // 全局段落索引
     var globalParagraphIndex by remember {
-        mutableIntStateOf(
-            document.pages.take(document.lastReadPage).sumOf { it.paragraphs.size } + document.lastReadParagraph,
-        )
+        val initialValue = document.pages.take(document.lastReadPage.coerceAtLeast(0).coerceAtMost(document.pages.size))
+            .sumOf { it.paragraphs.size } + document.lastReadParagraph.coerceAtLeast(0)
+        mutableIntStateOf(initialValue.coerceIn(0, (document.pages.flatMap { it.paragraphs }.size - 1).coerceAtLeast(0)))
     }
     var isSpeaking by remember { mutableStateOf(false) }
 
     // 计算当前页和段落索引
     fun calculatePageAndParagraph(globalIndex: Int): Pair<Int, Int> {
-        var remaining = globalIndex
+        var remaining = globalIndex.coerceAtLeast(0)
         for ((pageIdx, page) in document.pages.withIndex()) {
             if (remaining < page.paragraphs.size) {
                 return pageIdx to remaining
@@ -134,17 +135,48 @@ fun PdfReaderScreen(
         return document.pages.size - 1 to 0
     }
 
-    // 所有段落的扁平列表
-    val allParagraphs = remember(document.pages) {
+    val allParagraphs = remember(document) {
         document.pages.flatMap { it.paragraphs }
     }
 
-    val currentPageIndex = remember(globalParagraphIndex) {
+    val currentPageIndex = remember(globalParagraphIndex, allParagraphs) {
         calculatePageAndParagraph(globalParagraphIndex).first
     }
-    val currentParagraphIndex = remember(globalParagraphIndex) {
+    val currentParagraphIndex = remember(globalParagraphIndex, allParagraphs) {
         calculatePageAndParagraph(globalParagraphIndex).second
     }
+
+    // 辅助函数：跳过空段落
+    fun skipEmptyParagraphs(startIndex: Int, direction: Int): Int {
+        var index = startIndex
+        while (index in allParagraphs.indices) {
+            if (allParagraphs[index].isNotBlank()) {
+                return index
+            }
+            index += direction
+        }
+        return startIndex.coerceIn(0, allParagraphs.size - 1)
+    }
+
+    // 扁平化的段落列表（带页码信息），用于 LazyColumn
+    data class FlatParagraph(val globalIndex: Int, val pageIndex: Int, val paraIndex: Int, val text: String, val pageNumber: Int)
+
+    val flatParagraphs = remember(document) {
+        val list = mutableListOf<FlatParagraph>()
+        var globalIdx = 0
+        document.pages.forEachIndexed { pageIdx, page ->
+            page.paragraphs.forEachIndexed { paraIdx, text ->
+                list.add(FlatParagraph(globalIdx, pageIdx, paraIdx, text, page.pageNumber))
+                globalIdx++
+            }
+        }
+        list
+    }
+
+    // LazyListState 用于精确控制滚动位置
+    val lazyListState = rememberLazyListState()
+    var viewportHeight by remember { mutableIntStateOf(0) }
+    val itemHeights = remember { mutableStateMapOf<Int, Int>() }
 
     // TTS 回调实现
     val ttsCallbacks = remember(document) {
@@ -155,12 +187,11 @@ fun PdfReaderScreen(
 
             override fun getCurrentText(): String {
                 val text = allParagraphs.getOrNull(globalParagraphIndex) ?: ""
-                // 空段落自动跳过
-                if (text.isBlank() && globalParagraphIndex < allParagraphs.size - 1) {
-                    globalParagraphIndex++
-                    return getCurrentText()
+                return if (text.isBlank()) {
+                    "空段落"
+                } else {
+                    text
                 }
-                return text
             }
 
             override fun getCurrentUtteranceId(): String {
@@ -170,12 +201,22 @@ fun PdfReaderScreen(
             override fun moveToNext() {
                 if (globalParagraphIndex < allParagraphs.size - 1) {
                     globalParagraphIndex++
+                    // 跳过连续的空段落
+                    while (globalParagraphIndex < allParagraphs.size - 1 &&
+                        allParagraphs.getOrNull(globalParagraphIndex)?.isBlank() == true) {
+                        globalParagraphIndex++
+                    }
                 }
             }
 
             override fun moveToPrevious() {
                 if (globalParagraphIndex > 0) {
                     globalParagraphIndex--
+                    // 跳过连续的空段落
+                    while (globalParagraphIndex > 0 &&
+                        allParagraphs.getOrNull(globalParagraphIndex)?.isBlank() == true) {
+                        globalParagraphIndex--
+                    }
                 }
             }
         }
@@ -189,6 +230,24 @@ fun PdfReaderScreen(
         ttsController.state.collectLatest { state ->
             isSpeaking = state is TtsState.Speaking
         }
+    }
+
+    // 核心：当前段落变化时，滚动到屏幕中央
+    LaunchedEffect(globalParagraphIndex) {
+        kotlinx.coroutines.delay(50)
+
+        val itemHeight = itemHeights[globalParagraphIndex] ?: 0
+        val viewportCenter = viewportHeight / 2
+        val scrollOffset = if (itemHeight > 0) {
+            -viewportCenter + itemHeight / 2
+        } else {
+            -viewportCenter + 40
+        }
+
+        lazyListState.animateScrollToItem(
+            index = globalParagraphIndex,
+            scrollOffset = scrollOffset
+        )
     }
 
     Scaffold(
@@ -250,7 +309,6 @@ fun PdfReaderScreen(
         },
         bottomBar = {
             val pdfAccent = Color(0xFFB91C1C)
-            // 使用通用控制栏，通过 progressBar 插槽实现双进度条
             ReaderControlBar(
                 isSpeaking = isSpeaking,
                 currentIndex = currentPageIndex,
@@ -266,9 +324,7 @@ fun PdfReaderScreen(
                 onNext = { ttsController.speakNext() },
                 onRateChange = { ttsController.setSpeechRate(it) },
                 progressBar = {
-                    // PDF 双进度条：页进度 + 段进度
                     Column(modifier = Modifier.fillMaxWidth()) {
-                        // 页进度
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.fillMaxWidth(),
@@ -289,10 +345,7 @@ fun PdfReaderScreen(
                                 trackColor = Color(0xFF444444),
                             )
                         }
-
                         Spacer(modifier = Modifier.height(4.dp))
-
-                        // 段进度
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.fillMaxWidth(),
@@ -323,10 +376,13 @@ fun PdfReaderScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
                 .background(Color(0xFF1A1A1A))
+                .onGloballyPositioned { coordinates ->
+                    viewportHeight = coordinates.size.height
+                }
                 .pointerInput(Unit) {
                     detectTapGestures(
                         onDoubleTap = { ttsController.speakNext() },
-                        onTap = { /* 单击显示当前段落信息 */ },
+                        onTap = { },
                     )
                 }
                 .pointerInput(Unit) {
@@ -337,71 +393,72 @@ fun PdfReaderScreen(
                             val (x, y) = dragAmount
                             if (abs(x) > abs(y)) {
                                 when {
-                                    x > 0 -> swipeDirection = 0 // 右滑
-                                    x < 0 -> swipeDirection = 1 // 左滑
+                                    x > 0 -> swipeDirection = 0
+                                    x < 0 -> swipeDirection = 1
                                 }
                             } else {
                                 when {
-                                    y > 0 -> swipeDirection = 2 // 下滑
-                                    y < 0 -> swipeDirection = 3 // 上滑
+                                    y > 0 -> swipeDirection = 2
+                                    y < 0 -> swipeDirection = 3
                                 }
                             }
                         },
                         onDragEnd = {
                             when (swipeDirection) {
-                                0 -> ttsController.speakPrevious() // 右滑 → 上一段
-                                1 -> ttsController.speakNext()     // 左滑 → 下一段
-                                2 -> { /* 下滑 */ }
-                                3 -> { /* 上滑 */ }
+                                0 -> ttsController.speakPrevious()
+                                1 -> ttsController.speakNext()
+                                2 -> { }
+                                3 -> { }
                             }
                             swipeDirection = -1
                         },
                     )
                 },
         ) {
-            Column(
+            LazyColumn(
+                state = lazyListState,
                 modifier = Modifier
                     .fillMaxSize()
-                    .verticalScroll(scrollState)
                     .padding(horizontal = 20.dp, vertical = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                document.pages.forEachIndexed { pageIdx, page ->
-                    // 页码分隔
-                    if (pageIdx > 0) {
-                        PageDivider(pageNumber = page.pageNumber)
-                        Spacer(modifier = Modifier.height(16.dp))
-                    }
+                itemsIndexed(
+                    items = flatParagraphs,
+                    key = { _, item -> "pdf_para_${item.globalIndex}" }
+                ) { _, item ->
+                    val isCurrent = item.globalIndex == globalParagraphIndex
+                    val isEmpty = item.text.isBlank()
 
-                    // 页面内容
-                    page.paragraphs.forEachIndexed { paraIdx, paragraph ->
-                        val isCurrent = pageIdx == currentPageIndex && paraIdx == currentParagraphIndex
-                        val isEmpty = paragraph.isBlank()
+                    if (!isEmpty) {
+                        // 页码分隔（每页第一段前显示）
+                        if (item.paraIndex == 0 && item.pageIndex > 0) {
+                            PageDivider(pageNumber = item.pageNumber)
+                            Spacer(modifier = Modifier.height(16.dp))
+                        }
 
-                        if (!isEmpty) {
-                            val globalIdx = document.pages.take(pageIdx).sumOf { it.paragraphs.size } + paraIdx
+                        Box(
+                            modifier = Modifier.onGloballyPositioned { coordinates ->
+                                itemHeights[item.globalIndex] = coordinates.size.height
+                            }
+                        ) {
                             PdfParagraphItem(
-                                text = paragraph,
+                                text = item.text,
                                 isCurrent = isCurrent,
-                                pageNumber = page.pageNumber,
-                                paragraphNumber = paraIdx + 1,
+                                pageNumber = item.pageNumber,
+                                paragraphNumber = item.paraIndex + 1,
                                 onClick = {
-                                    globalParagraphIndex = globalIdx
+                                    globalParagraphIndex = item.globalIndex
                                     ttsController.speakCurrent()
                                 },
                             )
-
-                            Spacer(modifier = Modifier.height(12.dp))
-                        } else {
-                            // 空段落（间距）
-                            Spacer(modifier = Modifier.height(16.dp))
                         }
+                    } else {
+                        // 空段落作为间距
+                        Spacer(modifier = Modifier.height(16.dp))
                     }
                 }
-
-                Spacer(modifier = Modifier.height(80.dp))
             }
 
-            // 当前位置指示器
             CurrentPositionIndicator(
                 currentPage = currentPageIndex + 1,
                 totalPages = document.totalPages,
@@ -428,14 +485,12 @@ fun PageDivider(pageNumber: Int) {
                 .height(1.dp)
                 .background(Color(0xFF444444)),
         )
-
         Text(
             text = "— 第 $pageNumber 页 —",
             fontSize = 12.sp,
             color = Color(0xFF666666),
             modifier = Modifier.padding(horizontal = 12.dp),
         )
-
         Box(
             modifier = Modifier
                 .weight(1f)
@@ -522,7 +577,6 @@ fun CurrentPositionIndicator(
             .padding(horizontal = 10.dp, vertical = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        // 页码
         Text(
             text = "$currentPage",
             fontSize = 16.sp,
@@ -534,10 +588,7 @@ fun CurrentPositionIndicator(
             fontSize = 12.sp,
             color = Color.White.copy(alpha = 0.7f),
         )
-
         Spacer(modifier = Modifier.height(4.dp))
-
-        // 段落进度
         Box(
             modifier = Modifier
                 .width(2.dp)

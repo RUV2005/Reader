@@ -5,10 +5,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -16,6 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
@@ -67,8 +68,8 @@ val sampleExcelDoc = ExcelDocument(
 // ==================== 朗读模式 ====================
 
 enum class ReadMode {
-    ROW_BY_ROW,      // 逐行朗读
-    COLUMN_BY_COLUMN, // 逐列朗读
+    ROW_BY_ROW,
+    COLUMN_BY_COLUMN,
 }
 
 // ==================== Excel阅读页面 ====================
@@ -81,58 +82,124 @@ fun ExcelReaderScreen(
     onSettingsClick: () -> Unit = {},
 ) {
     val context = LocalContext.current
-    val scrollState = rememberScrollState()
 
-    // 当前行索引
     var currentRowIndex by remember { mutableIntStateOf(document.lastReadRow) }
     var isSpeaking by remember { mutableStateOf(false) }
     var readMode by remember { mutableStateOf(ReadMode.ROW_BY_ROW) }
+    var currentColIndex by remember { mutableIntStateOf(0) }
+
+    // LazyListState 用于精确控制滚动位置
+    val lazyListState = rememberLazyListState()
+    var viewportHeight by remember { mutableIntStateOf(0) }
+    val itemHeights = remember { mutableStateMapOf<Int, Int>() }
 
     // TTS 回调实现
     val ttsCallbacks = remember(document, readMode) {
         object : TtsCallbacks {
             override fun onUtteranceDone(): Boolean {
-                return currentRowIndex < document.rows.size - 1
+                return when (readMode) {
+                    ReadMode.ROW_BY_ROW -> currentRowIndex < document.rows.size - 1
+                    ReadMode.COLUMN_BY_COLUMN -> {
+                        val totalCells = document.rows.size * document.headers.size
+                        val currentCell = currentRowIndex * document.headers.size + currentColIndex
+                        currentCell < totalCells - 1
+                    }
+                }
             }
 
             override fun getCurrentText(): String {
-                val row = document.rows.getOrNull(currentRowIndex) ?: return ""
-                return buildString {
-                    append("第${currentRowIndex + 1}行。")
-                    document.headers.forEachIndexed { colIndex, header ->
-                        if (colIndex < row.size) {
-                            append("$header，${row[colIndex]}。")
+                return when (readMode) {
+                    ReadMode.ROW_BY_ROW -> {
+                        val row = document.rows.getOrNull(currentRowIndex) ?: return ""
+                        buildString {
+                            append("第${currentRowIndex + 1}行。")
+                            document.headers.forEachIndexed { colIndex, header ->
+                                if (colIndex < row.size) {
+                                    append("$header，${row[colIndex]}。")
+                                }
+                            }
+                        }
+                    }
+                    ReadMode.COLUMN_BY_COLUMN -> {
+                        val row = document.rows.getOrNull(currentRowIndex) ?: return ""
+                        val header = document.headers.getOrNull(currentColIndex) ?: return ""
+                        val cellValue = row.getOrNull(currentColIndex) ?: ""
+                        buildString {
+                            append("${header}列，第${currentRowIndex + 1}行，$cellValue。")
                         }
                     }
                 }
             }
 
             override fun getCurrentUtteranceId(): String {
-                return "excel_row_$currentRowIndex"
+                return when (readMode) {
+                    ReadMode.ROW_BY_ROW -> "excel_row_$currentRowIndex"
+                    ReadMode.COLUMN_BY_COLUMN -> "excel_col_${currentColIndex}_row_$currentRowIndex"
+                }
             }
 
             override fun moveToNext() {
-                if (currentRowIndex < document.rows.size - 1) {
-                    currentRowIndex++
+                when (readMode) {
+                    ReadMode.ROW_BY_ROW -> {
+                        if (currentRowIndex < document.rows.size - 1) {
+                            currentRowIndex++
+                        }
+                    }
+                    ReadMode.COLUMN_BY_COLUMN -> {
+                        if (currentRowIndex < document.rows.size - 1) {
+                            currentRowIndex++
+                        } else if (currentColIndex < document.headers.size - 1) {
+                            currentRowIndex = 0
+                            currentColIndex++
+                        }
+                    }
                 }
             }
 
             override fun moveToPrevious() {
-                if (currentRowIndex > 0) {
-                    currentRowIndex--
+                when (readMode) {
+                    ReadMode.ROW_BY_ROW -> {
+                        if (currentRowIndex > 0) {
+                            currentRowIndex--
+                        }
+                    }
+                    ReadMode.COLUMN_BY_COLUMN -> {
+                        if (currentRowIndex > 0) {
+                            currentRowIndex--
+                        } else if (currentColIndex > 0) {
+                            currentColIndex--
+                            currentRowIndex = document.rows.size - 1
+                        }
+                    }
                 }
             }
         }
     }
 
-    // TTS 控制器
     val ttsController = rememberTtsController(callbacks = ttsCallbacks)
 
-    // 监听 TTS 状态
     LaunchedEffect(ttsController) {
         ttsController.state.collectLatest { state ->
             isSpeaking = state is TtsState.Speaking
         }
+    }
+
+    // 核心：当前行变化时，滚动到屏幕中央
+    LaunchedEffect(currentRowIndex) {
+        kotlinx.coroutines.delay(50)
+
+        val itemHeight = itemHeights[currentRowIndex] ?: 0
+        val viewportCenter = viewportHeight / 2
+        val scrollOffset = if (itemHeight > 0) {
+            -viewportCenter + itemHeight / 2
+        } else {
+            -viewportCenter + 40
+        }
+
+        lazyListState.animateScrollToItem(
+            index = currentRowIndex,
+            scrollOffset = scrollOffset
+        )
     }
 
     // 朗读表头
@@ -145,8 +212,7 @@ fun ExcelReaderScreen(
             append("共有${document.rows.size}行数据。")
         }
         ttsController.stop()
-        // 直接朗读表头，不通过控制器的状态循环
-        ttsController.speakCurrent()
+        ttsController.speak(text)
     }
 
     Scaffold(
@@ -185,7 +251,6 @@ fun ExcelReaderScreen(
                     }
                 },
                 actions = {
-                    // 表头朗读按钮
                     IconButton(
                         onClick = { speakHeaders() },
                         modifier = Modifier.semantics {
@@ -220,7 +285,6 @@ fun ExcelReaderScreen(
             )
         },
         bottomBar = {
-            // 使用通用控制栏，通过 leftExtra 插入模式切换按钮
             val excelAccent = Color(0xFF217346)
             ReaderControlBar(
                 isSpeaking = isSpeaking,
@@ -237,7 +301,6 @@ fun ExcelReaderScreen(
                 onNext = { ttsController.speakNext() },
                 onRateChange = { ttsController.setSpeechRate(it) },
                 leftExtra = {
-                    // Excel 特有的朗读模式切换
                     var showModeMenu by remember { mutableStateOf(false) }
                     Box {
                         ReaderControlButton(
@@ -262,6 +325,7 @@ fun ExcelReaderScreen(
                                     },
                                     onClick = {
                                         readMode = mode
+                                        currentColIndex = 0
                                         showModeMenu = false
                                     },
                                 )
@@ -272,16 +336,18 @@ fun ExcelReaderScreen(
             )
         },
     ) { paddingValues ->
-        // 内容区域
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
                 .background(Color(0xFF1A1A1A))
+                .onGloballyPositioned { coordinates ->
+                    viewportHeight = coordinates.size.height
+                }
                 .pointerInput(Unit) {
                     detectTapGestures(
                         onDoubleTap = { ttsController.speakNext() },
-                        onTap = { /* 单击显示当前行信息 */ },
+                        onTap = { },
                     )
                 }
                 .pointerInput(Unit) {
@@ -292,70 +358,82 @@ fun ExcelReaderScreen(
                             val (x, y) = dragAmount
                             if (abs(x) > abs(y)) {
                                 when {
-                                    x > 0 -> swipeDirection = 0 // 右滑
-                                    x < 0 -> swipeDirection = 1 // 左滑
+                                    x > 0 -> swipeDirection = 0
+                                    x < 0 -> swipeDirection = 1
                                 }
                             } else {
                                 when {
-                                    y > 0 -> swipeDirection = 2 // 下滑
-                                    y < 0 -> swipeDirection = 3 // 上滑
+                                    y > 0 -> swipeDirection = 2
+                                    y < 0 -> swipeDirection = 3
                                 }
                             }
                         },
                         onDragEnd = {
                             when (swipeDirection) {
-                                0 -> ttsController.speakPrevious() // 右滑 → 上一行
-                                1 -> ttsController.speakNext()     // 左滑 → 下一行
-                                2 -> { /* 下滑 */ }
-                                3 -> { /* 上滑 */ }
+                                0 -> ttsController.speakPrevious()
+                                1 -> ttsController.speakNext()
+                                2 -> { }
+                                3 -> { }
                             }
                             swipeDirection = -1
                         },
                     )
                 },
         ) {
-            Column(
+            LazyColumn(
+                state = lazyListState,
                 modifier = Modifier
                     .fillMaxSize()
-                    .verticalScroll(scrollState)
                     .padding(horizontal = 12.dp, vertical = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 // 表头行
-                ExcelHeaderRow(
-                    headers = document.headers,
-                    onClick = { speakHeaders() },
-                )
+                item(key = "header") {
+                    ExcelHeaderRow(
+                        headers = document.headers,
+                        onClick = { speakHeaders() },
+                    )
+                }
 
-                Spacer(modifier = Modifier.height(8.dp))
+                item { Spacer(modifier = Modifier.height(8.dp)) }
 
                 // 数据行
-                document.rows.forEachIndexed { index, row ->
-                    val isCurrent = index == currentRowIndex
-                    val isTotalRow = row.firstOrNull()?.contains("合计") == true ||
-                            row.firstOrNull()?.contains("总计") == true
+                itemsIndexed(
+                    items = document.rows,
+                    key = { index, _ -> "excel_row_$index" }
+                ) { index, row ->
+                    val isCurrent = when (readMode) {
+                        ReadMode.ROW_BY_ROW -> index == currentRowIndex
+                        ReadMode.COLUMN_BY_COLUMN -> index == currentRowIndex
+                    }
+                    val isTotalRow = row.any { cell ->
+                        cell.contains("合计") || cell.contains("总计") || cell.contains("Total") || cell.contains("Sum")
+                    }
 
-                    ExcelDataRow(
-                        row = row,
-                        headers = document.headers,
-                        isCurrent = isCurrent,
-                        isTotalRow = isTotalRow,
-                        index = index,
-                        onClick = {
-                            currentRowIndex = index
-                            ttsController.speakCurrent()
-                        },
-                    )
-
-                    if (index < document.rows.size - 1) {
-                        Spacer(modifier = Modifier.height(4.dp))
+                    Box(
+                        modifier = Modifier.onGloballyPositioned { coordinates ->
+                            itemHeights[index] = coordinates.size.height
+                        }
+                    ) {
+                        ExcelDataRow(
+                            row = row,
+                            headers = document.headers,
+                            isCurrent = isCurrent,
+                            isTotalRow = isTotalRow,
+                            index = index,
+                            onClick = {
+                                currentRowIndex = index
+                                currentColIndex = 0
+                                ttsController.speakCurrent()
+                            },
+                        )
                     }
                 }
 
                 // 底部留白
-                Spacer(modifier = Modifier.height(80.dp))
+                item { Spacer(modifier = Modifier.height(80.dp)) }
             }
 
-            // 当前行指示器
             CurrentRowIndicator(
                 currentIndex = currentRowIndex,
                 totalCount = document.rows.size,
@@ -420,8 +498,8 @@ fun ExcelDataRow(
     }
 
     val textColor = when {
-        isCurrent -> Color(0xFFFFFF00) // 高亮黄色
-        isTotalRow -> Color(0xFF6BFF9E) // 合计行绿色
+        isCurrent -> Color(0xFFFFFF00)
+        isTotalRow -> Color(0xFF6BFF9E)
         else -> Color.White
     }
 
