@@ -1,5 +1,6 @@
 package com.danmo.reader.common
 
+import android.content.res.Configuration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -16,6 +17,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -28,9 +30,6 @@ import com.danmo.reader.R
 
 // ==================== 通用控制按钮 ====================
 
-/**
- * 通用的阅读器控制按钮（图标 + 标签文字）
- */
 @Composable
 fun ReaderControlButton(
     iconRes: Int,
@@ -163,13 +162,144 @@ private fun SingleProgressBar(
     )
 }
 
-// ==================== 通用阅读控制栏 ====================
+// ==================== 竖屏底部控制栏 ====================
 
-/**
- * 通用的阅读器底部控制栏（精简重构版）
- *
- * 内部子组件已内联为 private，对外仅暴露 ReaderControlButton 和本组件。
- */
+@Composable
+private fun PortraitControlBar(
+    isSpeaking: Boolean,
+    currentIndex: Int,
+    totalCount: Int,
+    speechRate: Float,
+    accentColor: Color,
+    previousLabel: String,
+    nextLabel: String,
+    positionText: String,
+    onPrevious: () -> Unit,
+    onPlayPause: () -> Unit,
+    onNext: () -> Unit,
+    onRateChange: (Float) -> Unit,
+    progressColor: Color,
+    playButtonSize: Dp,
+    progressBar: @Composable ColumnScope.() -> Unit,
+    extraContent: @Composable () -> Unit,
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = Color(0xFF2B2B2B),
+        shadowElevation = 8.dp,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+        ) {
+            progressBar()
+            Spacer(modifier = Modifier.height(12.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                SpeedSelector(currentRate = speechRate, accentColor = accentColor, onRateChange = onRateChange)
+                extraContent()
+                ReaderControlButton(
+                    iconRes = R.drawable.ic_previous,
+                    label = previousLabel,
+                    onClick = onPrevious,
+                    buttonDescription = "朗读$previousLabel",
+                )
+                PlayPauseButton(
+                    isPlaying = isSpeaking,
+                    onClick = onPlayPause,
+                    size = playButtonSize,
+                    backgroundColor = accentColor,
+                )
+                ReaderControlButton(
+                    iconRes = R.drawable.ic_next,
+                    label = nextLabel,
+                    onClick = onNext,
+                    buttonDescription = "朗读$nextLabel",
+                )
+                ReaderControlButton(
+                    iconRes = R.drawable.ic_chapters,
+                    label = positionText,
+                    onClick = { },
+                    buttonDescription = "当前第${currentIndex + 1}项，共$totalCount 项，点击跳转",
+                )
+            }
+        }
+    }
+}
+
+// ==================== 横屏侧边控制栏 ====================
+
+@Composable
+private fun LandscapeControlBar(
+    isSpeaking: Boolean,
+    currentIndex: Int,
+    totalCount: Int,
+    speechRate: Float,
+    accentColor: Color,
+    previousLabel: String,
+    nextLabel: String,
+    positionText: String,
+    onPrevious: () -> Unit,
+    onPlayPause: () -> Unit,
+    onNext: () -> Unit,
+    onRateChange: (Float) -> Unit,
+    progressColor: Color,
+    playButtonSize: Dp,
+    progressBar: @Composable ColumnScope.() -> Unit,
+    extraContent: @Composable () -> Unit,
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxHeight()
+            .width(80.dp),
+        color = Color(0xFF2B2B2B),
+        shadowElevation = 8.dp,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxHeight()
+                .padding(horizontal = 8.dp, vertical = 12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.SpaceEvenly,
+        ) {
+            progressBar()
+            Spacer(modifier = Modifier.height(8.dp))
+            SpeedSelector(currentRate = speechRate, accentColor = accentColor, onRateChange = onRateChange)
+            extraContent()
+            ReaderControlButton(
+                iconRes = R.drawable.ic_previous,
+                label = previousLabel,
+                onClick = onPrevious,
+                buttonDescription = "朗读$previousLabel",
+            )
+            PlayPauseButton(
+                isPlaying = isSpeaking,
+                onClick = onPlayPause,
+                size = 48.dp,
+                backgroundColor = accentColor,
+            )
+            ReaderControlButton(
+                iconRes = R.drawable.ic_next,
+                label = nextLabel,
+                onClick = onNext,
+                buttonDescription = "朗读$nextLabel",
+            )
+            ReaderControlButton(
+                iconRes = R.drawable.ic_chapters,
+                label = positionText,
+                onClick = { },
+                buttonDescription = "当前第${currentIndex + 1}项，共$totalCount 项，点击跳转",
+            )
+        }
+    }
+}
+
+// ==================== 通用阅读控制栏（自动适配横竖屏） ====================
+
 @Composable
 fun ReaderControlBar(
     isSpeaking: Boolean,
@@ -194,75 +324,54 @@ fun ReaderControlBar(
             color = progressColor,
         )
     },
-    leftExtra: @Composable RowScope.() -> Unit = {},
-    rightExtra: @Composable RowScope.() -> Unit = {},
+    leftExtra: @Composable () -> Unit = {},
+    rightExtra: @Composable () -> Unit = {},
 ) {
-    Surface(
-        modifier = modifier.fillMaxWidth(),
-        color = Color(0xFF2B2B2B),
-        shadowElevation = 8.dp,
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 10.dp),
-        ) {
-            // 进度条区域（可自定义，如 PDF 双进度条）
-            progressBar()
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
-            Spacer(modifier = Modifier.height(12.dp))
+    val extraContent: @Composable () -> Unit = {
+        leftExtra()
+        rightExtra()
+    }
 
-            // 控制按钮行
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                // 语速调节
-                SpeedSelector(
-                    currentRate = speechRate,
-                    accentColor = accentColor,
-                    onRateChange = onRateChange,
-                )
-
-                // 左侧额外按钮
-                leftExtra()
-
-                // 上一项
-                ReaderControlButton(
-                    iconRes = R.drawable.ic_previous,
-                    label = previousLabel,
-                    onClick = onPrevious,
-                    buttonDescription = "朗读$previousLabel",
-                )
-
-                // 播放/暂停
-                PlayPauseButton(
-                    isPlaying = isSpeaking,
-                    onClick = onPlayPause,
-                    size = playButtonSize,
-                    backgroundColor = accentColor,
-                )
-
-                // 下一项
-                ReaderControlButton(
-                    iconRes = R.drawable.ic_next,
-                    label = nextLabel,
-                    onClick = onNext,
-                    buttonDescription = "朗读$nextLabel",
-                )
-
-                // 右侧额外按钮
-                rightExtra()
-
-                // 位置显示
-                ReaderControlButton(
-                    iconRes = R.drawable.ic_chapters,
-                    label = positionText,
-                    onClick = { /* TODO: 显示跳转列表 */ },
-                    buttonDescription = "当前第${currentIndex + 1}项，共$totalCount 项，点击跳转",
-                )
-            }
-        }
+    if (isLandscape) {
+        LandscapeControlBar(
+            isSpeaking = isSpeaking,
+            currentIndex = currentIndex,
+            totalCount = totalCount,
+            speechRate = speechRate,
+            accentColor = accentColor,
+            previousLabel = previousLabel,
+            nextLabel = nextLabel,
+            positionText = positionText,
+            onPrevious = onPrevious,
+            onPlayPause = onPlayPause,
+            onNext = onNext,
+            onRateChange = onRateChange,
+            progressColor = progressColor,
+            playButtonSize = playButtonSize,
+            progressBar = progressBar,
+            extraContent = extraContent,
+        )
+    } else {
+        PortraitControlBar(
+            isSpeaking = isSpeaking,
+            currentIndex = currentIndex,
+            totalCount = totalCount,
+            speechRate = speechRate,
+            accentColor = accentColor,
+            previousLabel = previousLabel,
+            nextLabel = nextLabel,
+            positionText = positionText,
+            onPrevious = onPrevious,
+            onPlayPause = onPlayPause,
+            onNext = onNext,
+            onRateChange = onRateChange,
+            progressColor = progressColor,
+            playButtonSize = playButtonSize,
+            progressBar = progressBar,
+            extraContent = extraContent,
+        )
     }
 }

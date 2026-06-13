@@ -1,5 +1,6 @@
 package com.danmo.reader.ppt
 
+import android.content.res.Configuration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -18,6 +19,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
@@ -112,17 +114,17 @@ fun PptReaderScreen(
     onSettingsClick: () -> Unit = {},
 ) {
     val context = LocalContext.current
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
     var currentSlideIndex by remember { mutableIntStateOf(document.lastReadSlide) }
     var isSpeaking by remember { mutableStateOf(false) }
     var showNotes by remember { mutableStateOf(false) }
 
-    // LazyListState 用于精确控制滚动位置
     val lazyListState = rememberLazyListState()
     var viewportHeight by remember { mutableIntStateOf(0) }
     val itemHeights = remember { mutableStateMapOf<Int, Int>() }
 
-    // TTS 回调实现
     val ttsCallbacks = remember(document, showNotes) {
         object : TtsCallbacks {
             override fun onUtteranceDone(): Boolean {
@@ -168,7 +170,6 @@ fun PptReaderScreen(
         }
     }
 
-    // 修复：showNotes 变化时如果正在朗读，停止并重新朗读当前页
     LaunchedEffect(showNotes) {
         if (isSpeaking) {
             ttsController.stop()
@@ -177,10 +178,8 @@ fun PptReaderScreen(
         }
     }
 
-    // 核心：当前幻灯片变化时，滚动到屏幕中央
     LaunchedEffect(currentSlideIndex) {
         kotlinx.coroutines.delay(50)
-
         val itemHeight = itemHeights[currentSlideIndex] ?: 0
         val viewportCenter = viewportHeight / 2
         val scrollOffset = if (itemHeight > 0) {
@@ -188,106 +187,104 @@ fun PptReaderScreen(
         } else {
             -viewportCenter + 40
         }
-
         lazyListState.animateScrollToItem(
             index = currentSlideIndex,
             scrollOffset = scrollOffset
         )
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text(
-                            text = document.fileName,
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                        )
-                        Text(
-                            text = "共 ${document.totalSlides} 页",
-                            fontSize = 13.sp,
-                            color = Color.White.copy(alpha = 0.8f),
-                        )
-                    }
-                },
-                navigationIcon = {
-                    IconButton(
-                        onClick = {
-                            ttsController.stop()
-                            onBackClick()
-                        },
-                        modifier = Modifier.semantics {
-                            contentDescription = "返回，当前朗读将暂停"
-                        },
-                    ) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.ic_back),
-                            contentDescription = null,
-                            modifier = Modifier.size(24.dp),
-                        )
-                    }
-                },
-                actions = {
-                    IconButton(
-                        onClick = { showNotes = !showNotes },
-                        modifier = Modifier.semantics {
-                            contentDescription = if (showNotes) "隐藏备注" else "显示备注"
-                        },
-                    ) {
-                        Icon(
-                            painter = painterResource(
-                                id = if (showNotes) R.drawable.ic_notes_visible else R.drawable.ic_notes_hidden,
-                            ),
-                            contentDescription = null,
-                            modifier = Modifier.size(24.dp),
-                        )
-                    }
-                    IconButton(
-                        onClick = onSettingsClick,
-                        modifier = Modifier.semantics {
-                            contentDescription = "阅读设置"
-                        },
-                    ) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.ic_settings),
-                            contentDescription = null,
-                            modifier = Modifier.size(24.dp),
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color(0xFFD24726),
-                    titleContentColor = Color.White,
-                    navigationIconContentColor = Color.White,
-                    actionIconContentColor = Color.White,
-                ),
-            )
-        },
-        bottomBar = {
-            ReaderControlBar(
-                isSpeaking = isSpeaking,
-                currentIndex = currentSlideIndex,
-                totalCount = document.slides.size,
-                speechRate = ttsController.speechRate.collectAsState().value,
-                accentColor = Color(0xFFD24726),
-                progressColor = Color(0xFFD24726),
-                previousLabel = "上页",
-                nextLabel = "下页",
-                positionText = "${currentSlideIndex + 1}/${document.slides.size}",
-                onPrevious = { ttsController.speakPrevious() },
-                onPlayPause = { ttsController.togglePlayPause() },
-                onNext = { ttsController.speakNext() },
-                onRateChange = { ttsController.setSpeechRate(it) },
-            )
-        },
-    ) { paddingValues ->
+    val topBar: @Composable () -> Unit = {
+        TopAppBar(
+            title = {
+                Column {
+                    Text(
+                        text = document.fileName,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                    )
+                    Text(
+                        text = "共 ${document.totalSlides} 页",
+                        fontSize = 13.sp,
+                        color = Color.White.copy(alpha = 0.8f),
+                    )
+                }
+            },
+            navigationIcon = {
+                IconButton(
+                    onClick = {
+                        ttsController.stop()
+                        onBackClick()
+                    },
+                    modifier = Modifier.semantics {
+                        contentDescription = "返回，当前朗读将暂停"
+                    },
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.ic_back),
+                        contentDescription = null,
+                        modifier = Modifier.size(24.dp),
+                    )
+                }
+            },
+            actions = {
+                IconButton(
+                    onClick = { showNotes = !showNotes },
+                    modifier = Modifier.semantics {
+                        contentDescription = if (showNotes) "隐藏备注" else "显示备注"
+                    },
+                ) {
+                    Icon(
+                        painter = painterResource(
+                            id = if (showNotes) R.drawable.ic_notes_visible else R.drawable.ic_notes_hidden,
+                        ),
+                        contentDescription = null,
+                        modifier = Modifier.size(24.dp),
+                    )
+                }
+                IconButton(
+                    onClick = onSettingsClick,
+                    modifier = Modifier.semantics {
+                        contentDescription = "阅读设置"
+                    },
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.ic_settings),
+                        contentDescription = null,
+                        modifier = Modifier.size(24.dp),
+                    )
+                }
+            },
+            colors = TopAppBarDefaults.topAppBarColors(
+                containerColor = Color(0xFFD24726),
+                titleContentColor = Color.White,
+                navigationIconContentColor = Color.White,
+                actionIconContentColor = Color.White,
+            ),
+        )
+    }
+
+    val controlBar: @Composable () -> Unit = {
+        ReaderControlBar(
+            isSpeaking = isSpeaking,
+            currentIndex = currentSlideIndex,
+            totalCount = document.slides.size,
+            speechRate = ttsController.speechRate.collectAsState().value,
+            accentColor = Color(0xFFD24726),
+            progressColor = Color(0xFFD24726),
+            previousLabel = "上页",
+            nextLabel = "下页",
+            positionText = "${currentSlideIndex + 1}/${document.slides.size}",
+            onPrevious = { ttsController.speakPrevious() },
+            onPlayPause = { ttsController.togglePlayPause() },
+            onNext = { ttsController.speakNext() },
+            onRateChange = { ttsController.setSpeechRate(it) },
+        )
+    }
+
+    val content: @Composable (Modifier) -> Unit = { modifier ->
         Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
+            modifier = modifier
                 .background(Color(0xFF1A1A1A))
                 .onGloballyPositioned { coordinates ->
                     viewportHeight = coordinates.size.height
@@ -358,7 +355,6 @@ fun PptReaderScreen(
                     }
                 }
 
-                // 底部留白
                 item { Spacer(modifier = Modifier.height(80.dp)) }
             }
 
@@ -367,6 +363,31 @@ fun PptReaderScreen(
                 totalCount = document.slides.size,
                 modifier = Modifier.align(Alignment.CenterEnd),
             )
+        }
+    }
+
+    if (isLandscape) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color(0xFF1A1A1A)),
+        ) {
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight(),
+            ) {
+                topBar()
+                content(Modifier.fillMaxSize())
+            }
+            controlBar()
+        }
+    } else {
+        Scaffold(
+            topBar = { topBar() },
+            bottomBar = { controlBar() },
+        ) { paddingValues ->
+            content(Modifier.fillMaxSize().padding(paddingValues))
         }
     }
 }

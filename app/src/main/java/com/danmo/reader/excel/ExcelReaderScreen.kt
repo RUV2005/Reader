@@ -1,5 +1,6 @@
 package com.danmo.reader.excel
 
+import android.content.res.Configuration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -17,6 +18,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
@@ -82,18 +84,18 @@ fun ExcelReaderScreen(
     onSettingsClick: () -> Unit = {},
 ) {
     val context = LocalContext.current
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
     var currentRowIndex by remember { mutableIntStateOf(document.lastReadRow) }
     var isSpeaking by remember { mutableStateOf(false) }
     var readMode by remember { mutableStateOf(ReadMode.ROW_BY_ROW) }
     var currentColIndex by remember { mutableIntStateOf(0) }
 
-    // LazyListState 用于精确控制滚动位置
     val lazyListState = rememberLazyListState()
     var viewportHeight by remember { mutableIntStateOf(0) }
     val itemHeights = remember { mutableStateMapOf<Int, Int>() }
 
-    // TTS 回调实现
     val ttsCallbacks = remember(document, readMode) {
         object : TtsCallbacks {
             override fun onUtteranceDone(): Boolean {
@@ -184,10 +186,8 @@ fun ExcelReaderScreen(
         }
     }
 
-    // 核心：当前行变化时，滚动到屏幕中央
     LaunchedEffect(currentRowIndex) {
         kotlinx.coroutines.delay(50)
-
         val itemHeight = itemHeights[currentRowIndex] ?: 0
         val viewportCenter = viewportHeight / 2
         val scrollOffset = if (itemHeight > 0) {
@@ -195,14 +195,12 @@ fun ExcelReaderScreen(
         } else {
             -viewportCenter + 40
         }
-
         lazyListState.animateScrollToItem(
             index = currentRowIndex,
             scrollOffset = scrollOffset
         )
     }
 
-    // 朗读表头
     fun speakHeaders() {
         val text = buildString {
             append("表格共有${document.headers.size}列。")
@@ -215,131 +213,130 @@ fun ExcelReaderScreen(
         ttsController.speak(text)
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text(
-                            text = document.fileName,
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                        )
-                        Text(
-                            text = "工作表：${document.sheetName}",
-                            fontSize = 13.sp,
-                            color = Color.White.copy(alpha = 0.8f),
-                        )
-                    }
-                },
-                navigationIcon = {
-                    IconButton(
-                        onClick = {
-                            ttsController.stop()
-                            onBackClick()
-                        },
-                        modifier = Modifier.semantics {
-                            contentDescription = "返回，当前朗读将暂停"
-                        },
+    val topBar: @Composable () -> Unit = {
+        TopAppBar(
+            title = {
+                Column {
+                    Text(
+                        text = document.fileName,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                    )
+                    Text(
+                        text = "工作表：${document.sheetName}",
+                        fontSize = 13.sp,
+                        color = Color.White.copy(alpha = 0.8f),
+                    )
+                }
+            },
+            navigationIcon = {
+                IconButton(
+                    onClick = {
+                        ttsController.stop()
+                        onBackClick()
+                    },
+                    modifier = Modifier.semantics {
+                        contentDescription = "返回，当前朗读将暂停"
+                    },
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.ic_back),
+                        contentDescription = null,
+                        modifier = Modifier.size(24.dp),
+                    )
+                }
+            },
+            actions = {
+                IconButton(
+                    onClick = { speakHeaders() },
+                    modifier = Modifier.semantics {
+                        contentDescription = "朗读表头信息"
+                    },
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.ic_info),
+                        contentDescription = null,
+                        modifier = Modifier.size(24.dp),
+                    )
+                }
+                IconButton(
+                    onClick = onSettingsClick,
+                    modifier = Modifier.semantics {
+                        contentDescription = "阅读设置"
+                    },
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.ic_settings),
+                        contentDescription = null,
+                        modifier = Modifier.size(24.dp),
+                    )
+                }
+            },
+            colors = TopAppBarDefaults.topAppBarColors(
+                containerColor = Color(0xFF217346),
+                titleContentColor = Color.White,
+                navigationIconContentColor = Color.White,
+                actionIconContentColor = Color.White,
+            ),
+        )
+    }
+
+    val controlBar: @Composable () -> Unit = {
+        val excelAccent = Color(0xFF217346)
+        ReaderControlBar(
+            isSpeaking = isSpeaking,
+            currentIndex = currentRowIndex,
+            totalCount = document.rows.size,
+            speechRate = ttsController.speechRate.collectAsState().value,
+            accentColor = excelAccent,
+            progressColor = excelAccent,
+            previousLabel = "上行",
+            nextLabel = "下行",
+            positionText = "${currentRowIndex + 1}/${document.rows.size}",
+            onPrevious = { ttsController.speakPrevious() },
+            onPlayPause = { ttsController.togglePlayPause() },
+            onNext = { ttsController.speakNext() },
+            onRateChange = { ttsController.setSpeechRate(it) },
+            leftExtra = {
+                var showModeMenu by remember { mutableStateOf(false) }
+                Box {
+                    ReaderControlButton(
+                        iconRes = R.drawable.ic_mode,
+                        label = if (readMode == ReadMode.ROW_BY_ROW) "按行" else "按列",
+                        onClick = { showModeMenu = !showModeMenu },
+                        buttonDescription = "当前${if (readMode == ReadMode.ROW_BY_ROW) "按行朗读" else "按列朗读"}，点击切换",
+                    )
+                    DropdownMenu(
+                        expanded = showModeMenu,
+                        onDismissRequest = { showModeMenu = false },
+                        modifier = Modifier.background(Color(0xFF333333)),
                     ) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.ic_back),
-                            contentDescription = null,
-                            modifier = Modifier.size(24.dp),
-                        )
-                    }
-                },
-                actions = {
-                    IconButton(
-                        onClick = { speakHeaders() },
-                        modifier = Modifier.semantics {
-                            contentDescription = "朗读表头信息"
-                        },
-                    ) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.ic_info),
-                            contentDescription = null,
-                            modifier = Modifier.size(24.dp),
-                        )
-                    }
-                    IconButton(
-                        onClick = onSettingsClick,
-                        modifier = Modifier.semantics {
-                            contentDescription = "阅读设置"
-                        },
-                    ) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.ic_settings),
-                            contentDescription = null,
-                            modifier = Modifier.size(24.dp),
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color(0xFF217346),
-                    titleContentColor = Color.White,
-                    navigationIconContentColor = Color.White,
-                    actionIconContentColor = Color.White,
-                ),
-            )
-        },
-        bottomBar = {
-            val excelAccent = Color(0xFF217346)
-            ReaderControlBar(
-                isSpeaking = isSpeaking,
-                currentIndex = currentRowIndex,
-                totalCount = document.rows.size,
-                speechRate = ttsController.speechRate.collectAsState().value,
-                accentColor = excelAccent,
-                progressColor = excelAccent,
-                previousLabel = "上行",
-                nextLabel = "下行",
-                positionText = "${currentRowIndex + 1}/${document.rows.size}",
-                onPrevious = { ttsController.speakPrevious() },
-                onPlayPause = { ttsController.togglePlayPause() },
-                onNext = { ttsController.speakNext() },
-                onRateChange = { ttsController.setSpeechRate(it) },
-                leftExtra = {
-                    var showModeMenu by remember { mutableStateOf(false) }
-                    Box {
-                        ReaderControlButton(
-                            iconRes = R.drawable.ic_mode,
-                            label = if (readMode == ReadMode.ROW_BY_ROW) "按行" else "按列",
-                            onClick = { showModeMenu = !showModeMenu },
-                            buttonDescription = "当前${if (readMode == ReadMode.ROW_BY_ROW) "按行朗读" else "按列朗读"}，点击切换",
-                        )
-                        DropdownMenu(
-                            expanded = showModeMenu,
-                            onDismissRequest = { showModeMenu = false },
-                            modifier = Modifier.background(Color(0xFF333333)),
-                        ) {
-                            ReadMode.entries.forEach { mode ->
-                                DropdownMenuItem(
-                                    text = {
-                                        Text(
-                                            text = if (mode == ReadMode.ROW_BY_ROW) "按行朗读" else "按列朗读",
-                                            color = if (mode == readMode) excelAccent else Color.White,
-                                            fontWeight = if (mode == readMode) FontWeight.Bold else FontWeight.Normal,
-                                        )
-                                    },
-                                    onClick = {
-                                        readMode = mode
-                                        currentColIndex = 0
-                                        showModeMenu = false
-                                    },
-                                )
-                            }
+                        ReadMode.entries.forEach { mode ->
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        text = if (mode == ReadMode.ROW_BY_ROW) "按行朗读" else "按列朗读",
+                                        color = if (mode == readMode) excelAccent else Color.White,
+                                        fontWeight = if (mode == readMode) FontWeight.Bold else FontWeight.Normal,
+                                    )
+                                },
+                                onClick = {
+                                    readMode = mode
+                                    currentColIndex = 0
+                                    showModeMenu = false
+                                },
+                            )
                         }
                     }
-                },
-            )
-        },
-    ) { paddingValues ->
+                }
+            },
+        )
+    }
+
+    val content: @Composable (Modifier) -> Unit = { modifier ->
         Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
+            modifier = modifier
                 .background(Color(0xFF1A1A1A))
                 .onGloballyPositioned { coordinates ->
                     viewportHeight = coordinates.size.height
@@ -387,7 +384,6 @@ fun ExcelReaderScreen(
                     .padding(horizontal = 12.dp, vertical = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                // 表头行
                 item(key = "header") {
                     ExcelHeaderRow(
                         headers = document.headers,
@@ -397,7 +393,6 @@ fun ExcelReaderScreen(
 
                 item { Spacer(modifier = Modifier.height(8.dp)) }
 
-                // 数据行
                 itemsIndexed(
                     items = document.rows,
                     key = { index, _ -> "excel_row_$index" }
@@ -430,7 +425,6 @@ fun ExcelReaderScreen(
                     }
                 }
 
-                // 底部留白
                 item { Spacer(modifier = Modifier.height(80.dp)) }
             }
 
@@ -439,6 +433,31 @@ fun ExcelReaderScreen(
                 totalCount = document.rows.size,
                 modifier = Modifier.align(Alignment.CenterEnd),
             )
+        }
+    }
+
+    if (isLandscape) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color(0xFF1A1A1A)),
+        ) {
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight(),
+            ) {
+                topBar()
+                content(Modifier.fillMaxSize())
+            }
+            controlBar()
+        }
+    } else {
+        Scaffold(
+            topBar = { topBar() },
+            bottomBar = { controlBar() },
+        ) { paddingValues ->
+            content(Modifier.fillMaxSize().padding(paddingValues))
         }
     }
 }

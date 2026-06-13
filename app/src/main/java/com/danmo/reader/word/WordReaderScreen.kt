@@ -1,5 +1,6 @@
 package com.danmo.reader.word
 
+import android.content.res.Configuration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -17,8 +18,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -79,9 +80,10 @@ fun WordReaderScreen(
     onSettingsClick: () -> Unit = {},
 ) {
     val context = LocalContext.current
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
     val settingsRepository = remember(context) { SettingsRepository(context) }
 
-    // 从设置读取字体大小
     var fontSize by remember { mutableIntStateOf(18) }
     LaunchedEffect(Unit) {
         settingsRepository.fontSize.collect { size ->
@@ -89,20 +91,13 @@ fun WordReaderScreen(
         }
     }
 
-    // 当前段落索引
     var currentParagraphIndex by remember { mutableIntStateOf(document.lastReadIndex) }
     var isSpeaking by remember { mutableStateOf(false) }
 
-    // LazyListState 用于精确控制滚动位置
     val lazyListState = rememberLazyListState()
-
-    // 获取视口高度，用于计算居中偏移
     var viewportHeight by remember { mutableIntStateOf(0) }
-
-    // 记录每个 item 的高度
     val itemHeights = remember { mutableStateMapOf<Int, Int>() }
 
-    // TTS 回调实现
     val ttsCallbacks = remember(document) {
         object : TtsCallbacks {
             override fun onUtteranceDone(): Boolean {
@@ -131,89 +126,181 @@ fun WordReaderScreen(
         }
     }
 
-    // TTS 控制器
     val ttsController = rememberTtsController(callbacks = ttsCallbacks)
 
-    // 监听 TTS 状态
     LaunchedEffect(ttsController) {
         ttsController.state.collectLatest { state ->
             isSpeaking = state is TtsState.Speaking
         }
     }
 
-    // 核心：当前段落变化时，滚动到屏幕中央
     LaunchedEffect(currentParagraphIndex) {
-        // 等待布局完成
         kotlinx.coroutines.delay(50)
-
         val itemHeight = itemHeights[currentParagraphIndex] ?: 0
         val viewportCenter = viewportHeight / 2
-
-        // 使用 animateScrollToItem + scrollOffset 实现居中
-        // scrollOffset 为负值，表示将 item 向上推
         val scrollOffset = if (itemHeight > 0) {
             -viewportCenter + itemHeight / 2
         } else {
-            -viewportCenter + 40 // 默认估算
+            -viewportCenter + 40
         }
-
         lazyListState.animateScrollToItem(
             index = currentParagraphIndex,
             scrollOffset = scrollOffset
         )
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = document.fileName,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
+    // 横屏布局：Row(内容 | 控制栏)
+    // 竖屏布局：Scaffold(topBar + bottomBar)
+    if (isLandscape) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color(0xFF1A1A1A)),
+        ) {
+            // 左侧内容区
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight(),
+            ) {
+                // 顶部栏
+                TopAppBar(
+                    title = {
+                        Text(
+                            text = document.fileName,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                        )
+                    },
+                    navigationIcon = {
+                        IconButton(
+                            onClick = {
+                                ttsController.stop()
+                                onBackClick()
+                            },
+                            modifier = Modifier.semantics {
+                                contentDescription = "返回，当前朗读将暂停"
+                            },
+                        ) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.ic_back),
+                                contentDescription = null,
+                                modifier = Modifier.size(24.dp),
+                            )
+                        }
+                    },
+                    actions = {
+                        IconButton(
+                            onClick = onSettingsClick,
+                            modifier = Modifier.semantics {
+                                contentDescription = "阅读设置"
+                            },
+                        ) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.ic_settings),
+                                contentDescription = null,
+                                modifier = Modifier.size(24.dp),
+                            )
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = Color(0xFF2B579A),
+                        titleContentColor = Color.White,
+                        navigationIconContentColor = Color.White,
+                        actionIconContentColor = Color.White,
+                    ),
+                )
+
+                // 内容区域
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .onGloballyPositioned { coordinates ->
+                            viewportHeight = coordinates.size.height
+                        }
+                        .pointerInput(Unit) {
+                            detectTapGestures(
+                                onDoubleTap = { ttsController.speakNext() },
+                                onTap = { },
+                            )
+                        }
+                        .pointerInput(Unit) {
+                            var swipeDirection = -1
+                            detectDragGestures(
+                                onDrag = { change, dragAmount ->
+                                    change.consume()
+                                    val (x, y) = dragAmount
+                                    if (abs(x) > abs(y)) {
+                                        when {
+                                            x > 0 -> swipeDirection = 0
+                                            x < 0 -> swipeDirection = 1
+                                        }
+                                    } else {
+                                        when {
+                                            y > 0 -> swipeDirection = 2
+                                            y < 0 -> swipeDirection = 3
+                                        }
+                                    }
+                                },
+                                onDragEnd = {
+                                    when (swipeDirection) {
+                                        0 -> ttsController.speakPrevious()
+                                        1 -> ttsController.speakNext()
+                                        2 -> { }
+                                        3 -> { }
+                                    }
+                                    swipeDirection = -1
+                                },
+                            )
+                        },
+                ) {
+                    LazyColumn(
+                        state = lazyListState,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 20.dp, vertical = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                    ) {
+                        itemsIndexed(
+                            items = document.paragraphs,
+                            key = { index, _ -> "word_para_$index" }
+                        ) { index, paragraph ->
+                            val isCurrent = index == currentParagraphIndex
+                            val isHeading = paragraph.startsWith("第") && paragraph.contains("章") ||
+                                    paragraph.matches(Regex("""^\d+\.\d+.*"""))
+
+                            Box(
+                                modifier = Modifier.onGloballyPositioned { coordinates ->
+                                    itemHeights[index] = coordinates.size.height
+                                }
+                            ) {
+                                ParagraphItem(
+                                    text = paragraph,
+                                    isCurrent = isCurrent,
+                                    isHeading = isHeading,
+                                    index = index,
+                                    fontSize = fontSize,
+                                    onClick = {
+                                        currentParagraphIndex = index
+                                        ttsController.speakCurrent()
+                                    },
+                                )
+                            }
+                        }
+
+                        item { Spacer(modifier = Modifier.height(80.dp)) }
+                    }
+
+                    CurrentParagraphIndicator(
+                        currentIndex = currentParagraphIndex,
+                        totalCount = document.paragraphs.size,
+                        modifier = Modifier.align(Alignment.CenterEnd),
                     )
-                },
-                navigationIcon = {
-                    IconButton(
-                        onClick = {
-                            ttsController.stop()
-                            onBackClick()
-                        },
-                        modifier = Modifier.semantics {
-                            contentDescription = "返回，当前朗读将暂停"
-                        },
-                    ) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.ic_back),
-                            contentDescription = null,
-                            modifier = Modifier.size(24.dp),
-                        )
-                    }
-                },
-                actions = {
-                    IconButton(
-                        onClick = onSettingsClick,
-                        modifier = Modifier.semantics {
-                            contentDescription = "阅读设置"
-                        },
-                    ) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.ic_settings),
-                            contentDescription = null,
-                            modifier = Modifier.size(24.dp),
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color(0xFF2B579A),
-                    titleContentColor = Color.White,
-                    navigationIconContentColor = Color.White,
-                    actionIconContentColor = Color.White,
-                ),
-            )
-        },
-        bottomBar = {
+                }
+            }
+
+            // 右侧控制栏
             ReaderControlBar(
                 isSpeaking = isSpeaking,
                 currentIndex = currentParagraphIndex,
@@ -229,93 +316,164 @@ fun WordReaderScreen(
                 onNext = { ttsController.speakNext() },
                 onRateChange = { ttsController.setSpeechRate(it) },
             )
-        },
-    ) { paddingValues ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .background(Color(0xFF1A1A1A))
-                // 测量视口高度
-                .onGloballyPositioned { coordinates ->
-                    viewportHeight = coordinates.size.height
-                }
-                .pointerInput(Unit) {
-                    detectTapGestures(
-                        onDoubleTap = { ttsController.speakNext() },
-                        onTap = { },
-                    )
-                }
-                .pointerInput(Unit) {
-                    var swipeDirection = -1
-                    detectDragGestures(
-                        onDrag = { change, dragAmount ->
-                            change.consume()
-                            val (x, y) = dragAmount
-                            if (abs(x) > abs(y)) {
-                                when {
-                                    x > 0 -> swipeDirection = 0
-                                    x < 0 -> swipeDirection = 1
-                                }
-                            } else {
-                                when {
-                                    y > 0 -> swipeDirection = 2
-                                    y < 0 -> swipeDirection = 3
-                                }
-                            }
-                        },
-                        onDragEnd = {
-                            when (swipeDirection) {
-                                0 -> ttsController.speakPrevious()
-                                1 -> ttsController.speakNext()
-                                2 -> { }
-                                3 -> { }
-                            }
-                            swipeDirection = -1
-                        },
-                    )
-                },
-        ) {
-            LazyColumn(
-                state = lazyListState,
+        }
+    } else {
+        // 竖屏：保持原有 Scaffold 布局
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = {
+                        Text(
+                            text = document.fileName,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                        )
+                    },
+                    navigationIcon = {
+                        IconButton(
+                            onClick = {
+                                ttsController.stop()
+                                onBackClick()
+                            },
+                            modifier = Modifier.semantics {
+                                contentDescription = "返回，当前朗读将暂停"
+                            },
+                        ) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.ic_back),
+                                contentDescription = null,
+                                modifier = Modifier.size(24.dp),
+                            )
+                        }
+                    },
+                    actions = {
+                        IconButton(
+                            onClick = onSettingsClick,
+                            modifier = Modifier.semantics {
+                                contentDescription = "阅读设置"
+                            },
+                        ) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.ic_settings),
+                                contentDescription = null,
+                                modifier = Modifier.size(24.dp),
+                            )
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = Color(0xFF2B579A),
+                        titleContentColor = Color.White,
+                        navigationIconContentColor = Color.White,
+                        actionIconContentColor = Color.White,
+                    ),
+                )
+            },
+            bottomBar = {
+                ReaderControlBar(
+                    isSpeaking = isSpeaking,
+                    currentIndex = currentParagraphIndex,
+                    totalCount = document.paragraphs.size,
+                    speechRate = ttsController.speechRate.collectAsState().value,
+                    accentColor = Color(0xFF4A6FA5),
+                    progressColor = Color(0xFF4A6FA5),
+                    previousLabel = "上段",
+                    nextLabel = "下段",
+                    positionText = "${currentParagraphIndex + 1}/${document.paragraphs.size}",
+                    onPrevious = { ttsController.speakPrevious() },
+                    onPlayPause = { ttsController.togglePlayPause() },
+                    onNext = { ttsController.speakNext() },
+                    onRateChange = { ttsController.setSpeechRate(it) },
+                )
+            },
+        ) { paddingValues ->
+            Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 20.dp, vertical = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                itemsIndexed(
-                    items = document.paragraphs,
-                    key = { index, _ -> "para_$index" }
-                ) { index, paragraph ->
-                    val isCurrent = index == currentParagraphIndex
-                    val isHeading = paragraph.startsWith("第") && paragraph.contains("章") ||
-                            paragraph.matches(Regex("""^\d+\.\d+.*"""))
-
-                    Box(
-                        modifier = Modifier.onGloballyPositioned { coordinates ->
-                            itemHeights[index] = coordinates.size.height
-                        }
-                    ) {
-                        ParagraphItem(
-                            text = paragraph,
-                            isCurrent = isCurrent,
-                            isHeading = isHeading,
-                            index = index,
-                            fontSize = fontSize,
-                            onClick = {
-                                currentParagraphIndex = index
-                                ttsController.speakCurrent()
-                            },
+                    .padding(paddingValues)
+                    .background(Color(0xFF1A1A1A))
+                    .onGloballyPositioned { coordinates ->
+                        viewportHeight = coordinates.size.height
+                    }
+                    .pointerInput(Unit) {
+                        detectTapGestures(
+                            onDoubleTap = { ttsController.speakNext() },
+                            onTap = { },
                         )
                     }
-                }
-            }
+                    .pointerInput(Unit) {
+                        var swipeDirection = -1
+                        detectDragGestures(
+                            onDrag = { change, dragAmount ->
+                                change.consume()
+                                val (x, y) = dragAmount
+                                if (abs(x) > abs(y)) {
+                                    when {
+                                        x > 0 -> swipeDirection = 0
+                                        x < 0 -> swipeDirection = 1
+                                    }
+                                } else {
+                                    when {
+                                        y > 0 -> swipeDirection = 2
+                                        y < 0 -> swipeDirection = 3
+                                    }
+                                }
+                            },
+                            onDragEnd = {
+                                when (swipeDirection) {
+                                    0 -> ttsController.speakPrevious()
+                                    1 -> ttsController.speakNext()
+                                    2 -> { }
+                                    3 -> { }
+                                }
+                                swipeDirection = -1
+                            },
+                        )
+                    },
+            ) {
+                LazyColumn(
+                    state = lazyListState,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 20.dp, vertical = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    itemsIndexed(
+                        items = document.paragraphs,
+                        key = { index, _ -> "word_para_$index" }
+                    ) { index, paragraph ->
+                        val isCurrent = index == currentParagraphIndex
+                        val isHeading = paragraph.startsWith("第") && paragraph.contains("章") ||
+                                paragraph.matches(Regex("""^\d+\.\d+.*"""))
 
-            CurrentParagraphIndicator(
-                currentIndex = currentParagraphIndex,
-                totalCount = document.paragraphs.size,
-                modifier = Modifier.align(Alignment.CenterEnd),
-            )
+                        Box(
+                            modifier = Modifier.onGloballyPositioned { coordinates ->
+                                itemHeights[index] = coordinates.size.height
+                            }
+                        ) {
+                            ParagraphItem(
+                                text = paragraph,
+                                isCurrent = isCurrent,
+                                isHeading = isHeading,
+                                index = index,
+                                fontSize = fontSize,
+                                onClick = {
+                                    currentParagraphIndex = index
+                                    ttsController.speakCurrent()
+                                },
+                            )
+                        }
+                    }
+
+                    item { Spacer(modifier = Modifier.height(80.dp)) }
+                }
+
+                CurrentParagraphIndicator(
+                    currentIndex = currentParagraphIndex,
+                    totalCount = document.paragraphs.size,
+                    modifier = Modifier.align(Alignment.CenterEnd),
+                )
+            }
         }
     }
 }

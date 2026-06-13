@@ -1,5 +1,6 @@
 package com.danmo.reader.pdf
 
+import android.content.res.Configuration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -17,6 +18,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
@@ -114,8 +116,9 @@ fun PdfReaderScreen(
     onSettingsClick: () -> Unit = {},
 ) {
     val context = LocalContext.current
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
-    // 全局段落索引
     var globalParagraphIndex by remember {
         val initialValue = document.pages.take(document.lastReadPage.coerceAtLeast(0).coerceAtMost(document.pages.size))
             .sumOf { it.paragraphs.size } + document.lastReadParagraph.coerceAtLeast(0)
@@ -123,7 +126,6 @@ fun PdfReaderScreen(
     }
     var isSpeaking by remember { mutableStateOf(false) }
 
-    // 计算当前页和段落索引
     fun calculatePageAndParagraph(globalIndex: Int): Pair<Int, Int> {
         var remaining = globalIndex.coerceAtLeast(0)
         for ((pageIdx, page) in document.pages.withIndex()) {
@@ -146,19 +148,6 @@ fun PdfReaderScreen(
         calculatePageAndParagraph(globalParagraphIndex).second
     }
 
-    // 辅助函数：跳过空段落
-    fun skipEmptyParagraphs(startIndex: Int, direction: Int): Int {
-        var index = startIndex
-        while (index in allParagraphs.indices) {
-            if (allParagraphs[index].isNotBlank()) {
-                return index
-            }
-            index += direction
-        }
-        return startIndex.coerceIn(0, allParagraphs.size - 1)
-    }
-
-    // 扁平化的段落列表（带页码信息），用于 LazyColumn
     data class FlatParagraph(val globalIndex: Int, val pageIndex: Int, val paraIndex: Int, val text: String, val pageNumber: Int)
 
     val flatParagraphs = remember(document) {
@@ -173,12 +162,10 @@ fun PdfReaderScreen(
         list
     }
 
-    // LazyListState 用于精确控制滚动位置
     val lazyListState = rememberLazyListState()
     var viewportHeight by remember { mutableIntStateOf(0) }
     val itemHeights = remember { mutableStateMapOf<Int, Int>() }
 
-    // TTS 回调实现
     val ttsCallbacks = remember(document) {
         object : TtsCallbacks {
             override fun onUtteranceDone(): Boolean {
@@ -201,7 +188,6 @@ fun PdfReaderScreen(
             override fun moveToNext() {
                 if (globalParagraphIndex < allParagraphs.size - 1) {
                     globalParagraphIndex++
-                    // 跳过连续的空段落
                     while (globalParagraphIndex < allParagraphs.size - 1 &&
                         allParagraphs.getOrNull(globalParagraphIndex)?.isBlank() == true) {
                         globalParagraphIndex++
@@ -212,7 +198,6 @@ fun PdfReaderScreen(
             override fun moveToPrevious() {
                 if (globalParagraphIndex > 0) {
                     globalParagraphIndex--
-                    // 跳过连续的空段落
                     while (globalParagraphIndex > 0 &&
                         allParagraphs.getOrNull(globalParagraphIndex)?.isBlank() == true) {
                         globalParagraphIndex--
@@ -222,20 +207,16 @@ fun PdfReaderScreen(
         }
     }
 
-    // TTS 控制器
     val ttsController = rememberTtsController(callbacks = ttsCallbacks)
 
-    // 监听 TTS 状态
     LaunchedEffect(ttsController) {
         ttsController.state.collectLatest { state ->
             isSpeaking = state is TtsState.Speaking
         }
     }
 
-    // 核心：当前段落变化时，滚动到屏幕中央
     LaunchedEffect(globalParagraphIndex) {
         kotlinx.coroutines.delay(50)
-
         val itemHeight = itemHeights[globalParagraphIndex] ?: 0
         val viewportCenter = viewportHeight / 2
         val scrollOffset = if (itemHeight > 0) {
@@ -243,138 +224,136 @@ fun PdfReaderScreen(
         } else {
             -viewportCenter + 40
         }
-
         lazyListState.animateScrollToItem(
             index = globalParagraphIndex,
             scrollOffset = scrollOffset
         )
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text(
-                            text = document.fileName,
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                        )
-                        Text(
-                            text = "第 ${currentPageIndex + 1} / ${document.totalPages} 页",
-                            fontSize = 13.sp,
-                            color = Color.White.copy(alpha = 0.8f),
-                        )
-                    }
-                },
-                navigationIcon = {
-                    IconButton(
-                        onClick = {
-                            ttsController.stop()
-                            onBackClick()
-                        },
-                        modifier = Modifier.semantics {
-                            contentDescription = "返回，当前朗读将暂停"
-                        },
+    val topBar: @Composable () -> Unit = {
+        TopAppBar(
+            title = {
+                Column {
+                    Text(
+                        text = document.fileName,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                    )
+                    Text(
+                        text = "第 ${currentPageIndex + 1} / ${document.totalPages} 页",
+                        fontSize = 13.sp,
+                        color = Color.White.copy(alpha = 0.8f),
+                    )
+                }
+            },
+            navigationIcon = {
+                IconButton(
+                    onClick = {
+                        ttsController.stop()
+                        onBackClick()
+                    },
+                    modifier = Modifier.semantics {
+                        contentDescription = "返回，当前朗读将暂停"
+                    },
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.ic_back),
+                        contentDescription = null,
+                        modifier = Modifier.size(24.dp),
+                    )
+                }
+            },
+            actions = {
+                IconButton(
+                    onClick = onSettingsClick,
+                    modifier = Modifier.semantics {
+                        contentDescription = "阅读设置"
+                    },
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.ic_settings),
+                        contentDescription = null,
+                        modifier = Modifier.size(24.dp),
+                    )
+                }
+            },
+            colors = TopAppBarDefaults.topAppBarColors(
+                containerColor = Color(0xFFB91C1C),
+                titleContentColor = Color.White,
+                navigationIconContentColor = Color.White,
+                actionIconContentColor = Color.White,
+            ),
+        )
+    }
+
+    val controlBar: @Composable () -> Unit = {
+        val pdfAccent = Color(0xFFB91C1C)
+        ReaderControlBar(
+            isSpeaking = isSpeaking,
+            currentIndex = currentPageIndex,
+            totalCount = document.totalPages,
+            speechRate = ttsController.speechRate.collectAsState().value,
+            accentColor = pdfAccent,
+            progressColor = pdfAccent,
+            previousLabel = "上段",
+            nextLabel = "下段",
+            positionText = "${currentPageIndex + 1}/${document.totalPages}",
+            onPrevious = { ttsController.speakPrevious() },
+            onPlayPause = { ttsController.togglePlayPause() },
+            onNext = { ttsController.speakNext() },
+            onRateChange = { ttsController.setSpeechRate(it) },
+            progressBar = {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth(),
                     ) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.ic_back),
-                            contentDescription = null,
-                            modifier = Modifier.size(24.dp),
+                        Text(
+                            text = "页",
+                            fontSize = 10.sp,
+                            color = Color(0xFF888888),
+                            modifier = Modifier.width(20.dp),
+                        )
+                        LinearProgressIndicator(
+                            progress = { (currentPageIndex + 1).toFloat() / document.totalPages.toFloat() },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(3.dp)
+                                .clip(RoundedCornerShape(2.dp)),
+                            color = pdfAccent,
+                            trackColor = Color(0xFF444444),
                         )
                     }
-                },
-                actions = {
-                    IconButton(
-                        onClick = onSettingsClick,
-                        modifier = Modifier.semantics {
-                            contentDescription = "阅读设置"
-                        },
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth(),
                     ) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.ic_settings),
-                            contentDescription = null,
-                            modifier = Modifier.size(24.dp),
+                        Text(
+                            text = "段",
+                            fontSize = 10.sp,
+                            color = Color(0xFF888888),
+                            modifier = Modifier.width(20.dp),
+                        )
+                        LinearProgressIndicator(
+                            progress = { (globalParagraphIndex + 1).toFloat() / allParagraphs.size.toFloat() },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(3.dp)
+                                .clip(RoundedCornerShape(2.dp)),
+                            color = Color(0xFFFF6B6B),
+                            trackColor = Color(0xFF444444),
                         )
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color(0xFFB91C1C),
-                    titleContentColor = Color.White,
-                    navigationIconContentColor = Color.White,
-                    actionIconContentColor = Color.White,
-                ),
-            )
-        },
-        bottomBar = {
-            val pdfAccent = Color(0xFFB91C1C)
-            ReaderControlBar(
-                isSpeaking = isSpeaking,
-                currentIndex = currentPageIndex,
-                totalCount = document.totalPages,
-                speechRate = ttsController.speechRate.collectAsState().value,
-                accentColor = pdfAccent,
-                progressColor = pdfAccent,
-                previousLabel = "上段",
-                nextLabel = "下段",
-                positionText = "${currentPageIndex + 1}/${document.totalPages}",
-                onPrevious = { ttsController.speakPrevious() },
-                onPlayPause = { ttsController.togglePlayPause() },
-                onNext = { ttsController.speakNext() },
-                onRateChange = { ttsController.setSpeechRate(it) },
-                progressBar = {
-                    Column(modifier = Modifier.fillMaxWidth()) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Text(
-                                text = "页",
-                                fontSize = 10.sp,
-                                color = Color(0xFF888888),
-                                modifier = Modifier.width(20.dp),
-                            )
-                            LinearProgressIndicator(
-                                progress = { (currentPageIndex + 1).toFloat() / document.totalPages.toFloat() },
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(3.dp)
-                                    .clip(RoundedCornerShape(2.dp)),
-                                color = pdfAccent,
-                                trackColor = Color(0xFF444444),
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Text(
-                                text = "段",
-                                fontSize = 10.sp,
-                                color = Color(0xFF888888),
-                                modifier = Modifier.width(20.dp),
-                            )
-                            LinearProgressIndicator(
-                                progress = { (globalParagraphIndex + 1).toFloat() / allParagraphs.size.toFloat() },
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(3.dp)
-                                    .clip(RoundedCornerShape(2.dp)),
-                                color = Color(0xFFFF6B6B),
-                                trackColor = Color(0xFF444444),
-                            )
-                        }
-                    }
-                },
-            )
-        },
-    ) { paddingValues ->
+                }
+            },
+        )
+    }
+
+    val content: @Composable (Modifier) -> Unit = { modifier ->
         Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
+            modifier = modifier
                 .background(Color(0xFF1A1A1A))
                 .onGloballyPositioned { coordinates ->
                     viewportHeight = coordinates.size.height
@@ -430,7 +409,7 @@ fun PdfReaderScreen(
                     val isEmpty = item.text.isBlank()
 
                     if (!isEmpty) {
-                        // 页码分隔（每页第一段前显示）
+                        // 修复：在 itemsIndexed 的 content 中直接渲染 PageDivider，不用 item()
                         if (item.paraIndex == 0 && item.pageIndex > 0) {
                             PageDivider(pageNumber = item.pageNumber)
                             Spacer(modifier = Modifier.height(16.dp))
@@ -453,7 +432,6 @@ fun PdfReaderScreen(
                             )
                         }
                     } else {
-                        // 空段落作为间距
                         Spacer(modifier = Modifier.height(16.dp))
                     }
                 }
@@ -466,6 +444,31 @@ fun PdfReaderScreen(
                 totalParagraphs = allParagraphs.size,
                 modifier = Modifier.align(Alignment.CenterEnd),
             )
+        }
+    }
+
+    if (isLandscape) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color(0xFF1A1A1A)),
+        ) {
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight(),
+            ) {
+                topBar()
+                content(Modifier.fillMaxSize())
+            }
+            controlBar()
+        }
+    } else {
+        Scaffold(
+            topBar = { topBar() },
+            bottomBar = { controlBar() },
+        ) { paddingValues ->
+            content(Modifier.fillMaxSize().padding(paddingValues))
         }
     }
 }
