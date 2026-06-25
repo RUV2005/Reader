@@ -29,6 +29,8 @@ import com.danmo.reader.file.FileListScreen
 import com.danmo.reader.file.FileType
 import com.danmo.reader.file.DocumentFile
 import com.danmo.reader.filepicker.DocumentPicker
+import com.danmo.reader.ocr.OcrManager
+import com.danmo.reader.ocr.ui.OcrResultScreen
 import com.danmo.reader.parser.DocumentType
 import com.danmo.reader.parser.ExcelParser
 import com.danmo.reader.parser.ParseResult
@@ -62,6 +64,7 @@ sealed class Screen {
     data class ExcelReader(val doc: ExcelDocument) : Screen()
     data class PptReader(val doc: PptDocument) : Screen()
     data class PdfReader(val doc: PdfDocument) : Screen()
+    data class OcrResult(val text: String, val blocks: List<String>) : Screen()
     data object Settings : Screen()
 }
 
@@ -77,6 +80,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var documentPickerLauncher: ActivityResultLauncher<android.content.Intent>
     // 最近文件历史记录的持久化仓库
     private lateinit var recentFileRepository: RecentFileRepository
+    private lateinit var ocrManager: OcrManager
+    private lateinit var imagePickerLauncher: ActivityResultLauncher<String>
 
     // 核心 UI 状态，使用 Compose 观察
     private var currentTab by mutableStateOf(MainTab.HOME)         // 当前处于哪个 Tab
@@ -89,6 +94,11 @@ class MainActivity : AppCompatActivity() {
         enableEdgeToEdge() // 开启全屏沉浸式体验
 
         recentFileRepository = RecentFileRepository(this)
+        ocrManager = OcrManager(this)
+
+        imagePickerLauncher = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.GetContent()) { uri: Uri? ->
+            uri?.let { handleOcrImage(it) }
+        }
 
         // 自定义返回键处理逻辑：如果有打开的文档则先关闭文档，否则切换回首页，最后才退出应用
         onBackPressedDispatcher.addCallback(
@@ -157,6 +167,11 @@ class MainActivity : AppCompatActivity() {
                             ) {
                                 pushScreen(Screen.Settings)
                             }
+                            is Screen.OcrResult -> OcrResultScreen(
+                                text = topScreen.text,
+                                blocks = topScreen.blocks,
+                                onBackClick = { popScreen() }
+                            )
                             is Screen.Settings -> SettingsScreen(
                                 onBackClick = { popScreen() }
                             )
@@ -167,6 +182,9 @@ class MainActivity : AppCompatActivity() {
                             onNavigateToShelf = { currentTab = MainTab.FILES },
                             onNavigateToProfile = { currentTab = MainTab.SETTINGS },
                             onSettingsClick = { currentTab = MainTab.SETTINGS },
+                            onScanClick = {
+                                imagePickerLauncher.launch("image/*")
+                            },
                             onFunctionCardClick = { title ->
                                 when {
                                     title.contains("Word") -> openDocumentPicker(DocumentType.WORD)
@@ -280,6 +298,27 @@ class MainActivity : AppCompatActivity() {
      */
     private fun openDocumentPicker(type: DocumentType? = null) {
         DocumentPicker.openPicker(documentPickerLauncher, type)
+    }
+
+    /**
+     * 处理 OCR 图片识别
+     */
+    private fun handleOcrImage(uri: Uri) {
+        isLoading = true
+        lifecycleScope.launch {
+            try {
+                val result = ocrManager.recognizeText(uri)
+                if (result.blocks.isNotEmpty()) {
+                    pushScreen(Screen.OcrResult(result.text, result.blocks))
+                } else {
+                    parseError = "未能在图片中识别到文字"
+                }
+            } catch (e: Exception) {
+                parseError = "识别出错: ${e.message}"
+            } finally {
+                isLoading = false
+            }
+        }
     }
 
     /**

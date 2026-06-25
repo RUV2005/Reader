@@ -30,6 +30,9 @@ poi = "5.2.5"
 poiOoxml = "5.2.5"
 poiScratchpad = "5.2.5"
 
+mlkitTextRecognition = "16.0.1"
+mlkitTextRecognitionChinese = "16.0.0"
+
 commonsCodec = "1.17.1"
 commonsCollections4 = "4.4"
 commonsCompress = "1.27.1"
@@ -70,6 +73,8 @@ poi-scratchpad = { module = "org.apache.poi:poi-scratchpad", version.ref = "poiS
 sparsebitset = { module = "com.zaxxer:SparseBitSet", version.ref = "sparsebitset" }
 tom-roush-pdfbox-android = { module = "com.tom-roush:pdfbox-android", version.ref = "pdfboxAndroidVersion" }
 xmlbeans = { module = "org.apache.xmlbeans:xmlbeans", version.ref = "xmlbeans" }
+mlkit-text-recognition = { module = "com.google.mlkit:text-recognition", version.ref = "mlkitTextRecognition" }
+mlkit-text-recognition-chinese = { module = "com.google.android.gms:play-services-mlkit-text-recognition-chinese", version = "16.0.0" }
 coil-compose = { module = "io.coil-kt:coil-compose", version.ref = "coil" }
 
 [plugins]

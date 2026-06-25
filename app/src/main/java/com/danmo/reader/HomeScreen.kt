@@ -96,6 +96,7 @@ fun HomeScreen(
     onNavigateToShelf: () -> Unit = {},          // 切换到“文件”Tab的回调
     onNavigateToProfile: () -> Unit = {},        // 切换到“设置”Tab的回调
     onSettingsClick: () -> Unit = {},            // 点击右上角设置按钮的回调
+    onScanClick: () -> Unit = {},                // 扫描按钮回调
     onFunctionCardClick: (String) -> Unit = {},  // 点击文档类型卡片的回调
     onRecentFileClick: (RecentFile) -> Unit = {}, // 点击最近打开文件的回调
     recentFiles: List<RecentFile> = emptyList(), // 最近文件历史数据列表
@@ -118,7 +119,7 @@ fun HomeScreen(
                 containerColor = Color.White,
                 header = {
                     ScanFloatingButton {
-                        /* TODO: 实现扫描识字功能 */
+                        onScanClick()
                     }
                 },
                 modifier = Modifier.fillMaxHeight()
@@ -216,7 +217,7 @@ fun HomeScreen(
             },
             floatingActionButton = {
                 ScanFloatingButton {
-                    /* TODO: 实现扫描识字功能 */
+                    onScanClick()
                 }
             },
             floatingActionButtonPosition = FabPosition.Center
