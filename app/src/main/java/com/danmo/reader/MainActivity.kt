@@ -7,6 +7,7 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -30,6 +31,7 @@ import com.danmo.reader.file.FileType
 import com.danmo.reader.file.DocumentFile
 import com.danmo.reader.filepicker.DocumentPicker
 import com.danmo.reader.ocr.OcrManager
+import com.danmo.reader.ocr.camera.CameraCaptureScreen
 import com.danmo.reader.ocr.ui.OcrResultScreen
 import com.danmo.reader.parser.DocumentType
 import com.danmo.reader.parser.ExcelParser
@@ -65,6 +67,7 @@ sealed class Screen {
     data class PptReader(val doc: PptDocument) : Screen()
     data class PdfReader(val doc: PdfDocument) : Screen()
     data class OcrResult(val text: String, val blocks: List<String>) : Screen()
+    data object CameraCapture : Screen()
     data object Settings : Screen()
 }
 
@@ -78,6 +81,7 @@ class MainActivity : AppCompatActivity() {
 
     // 文件选择器的启动器，用于处理 SAF (Storage Access Framework) 回调
     private lateinit var documentPickerLauncher: ActivityResultLauncher<android.content.Intent>
+    private lateinit var cameraPermissionLauncher: ActivityResultLauncher<String>
     // 最近文件历史记录的持久化仓库
     private lateinit var recentFileRepository: RecentFileRepository
     private lateinit var ocrManager: OcrManager
@@ -92,6 +96,14 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge() // 开启全屏沉浸式体验
+
+        cameraPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
+            if (isGranted) {
+                pushScreen(Screen.CameraCapture)
+            } else {
+                parseError = "需要相机权限才能使用扫描功能"
+            }
+        }
 
         recentFileRepository = RecentFileRepository(this)
         ocrManager = OcrManager(this)
@@ -172,6 +184,16 @@ class MainActivity : AppCompatActivity() {
                                 blocks = topScreen.blocks,
                                 onBackClick = { popScreen() }
                             )
+                            is Screen.CameraCapture -> CameraCaptureScreen(
+                                onImageCaptured = { uri ->
+                                    popScreen() // 关闭相机
+                                    handleOcrImage(uri) // 处理识别
+                                },
+                                onGalleryClick = {
+                                    imagePickerLauncher.launch("image/*")
+                                },
+                                onBackClick = { popScreen() }
+                            )
                             is Screen.Settings -> SettingsScreen(
                                 onBackClick = { popScreen() }
                             )
@@ -183,7 +205,7 @@ class MainActivity : AppCompatActivity() {
                             onNavigateToProfile = { currentTab = MainTab.SETTINGS },
                             onSettingsClick = { currentTab = MainTab.SETTINGS },
                             onScanClick = {
-                                imagePickerLauncher.launch("image/*")
+                                cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
                             },
                             onFunctionCardClick = { title ->
                                 when {
