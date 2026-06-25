@@ -6,7 +6,6 @@ import androidx.documentfile.provider.DocumentFile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.apache.poi.ss.usermodel.*
-import org.apache.poi.xssf.usermodel.XSSFWorkbook
 import org.apache.poi.hssf.usermodel.HSSFWorkbook
 import java.io.InputStream
 import java.text.DecimalFormat
@@ -42,7 +41,8 @@ data class ExcelSheet(
     val headers: List<String>,
     val rows: List<ExcelRow>,
     val totalRows: Int = 0,
-    val totalCols: Int = 0
+    val totalCols: Int = 0,
+    val imagePaths: List<String> = emptyList()
 )
 
 /**
@@ -71,7 +71,7 @@ class ExcelParser : DocumentParser<ExcelParseResult> {
                 val fileName = documentFile?.name ?: "未知文件"
 
                 context.contentResolver.openInputStream(uri)?.use { inputStream ->
-                    parseInternal(inputStream, fileName)
+                    parseInternal(context, inputStream, fileName)
                 } ?: ParseResult.Error("无法打开文件输入流")
             } catch (e: Exception) {
                 ParseResult.Error("解析 Excel 文档失败: ${e.message}", e)
@@ -82,14 +82,14 @@ class ExcelParser : DocumentParser<ExcelParseResult> {
     override suspend fun parse(inputStream: InputStream, fileName: String): ParseResult<ExcelParseResult> {
         return withContext(Dispatchers.IO) {
             try {
-                parseInternal(inputStream, fileName)
+                parseInternal(null, inputStream, fileName)
             } catch (e: Exception) {
                 ParseResult.Error("解析 Excel 文档失败: ${e.message}", e)
             }
         }
     }
 
-    private fun parseInternal(inputStream: InputStream, fileName: String): ParseResult<ExcelParseResult> {
+    private fun parseInternal(context: Context?, inputStream: InputStream, fileName: String): ParseResult<ExcelParseResult> {
         return try {
             val workbook = WorkbookFactory.create(inputStream)
             val sheets = mutableListOf<ExcelSheet>()
@@ -98,7 +98,7 @@ class ExcelParser : DocumentParser<ExcelParseResult> {
             var index = 0
             while (sheetIterator.hasNext()) {
                 val sheet = sheetIterator.next()
-                val sheetData = parseSheet(sheet, index)
+                val sheetData = parseSheet(context, sheet, index)
                 sheets.add(sheetData)
                 index++
             }
@@ -118,10 +118,49 @@ class ExcelParser : DocumentParser<ExcelParseResult> {
         }
     }
 
-    private fun parseSheet(sheet: Sheet, sheetIndex: Int): ExcelSheet {
+    private fun parseSheet(context: Context?, sheet: Sheet, sheetIndex: Int): ExcelSheet {
         val rows = mutableListOf<ExcelRow>()
         var maxCols = 0
         var headers = listOf<String>()
+        val imagePaths = mutableListOf<String>()
+
+        // 提取图片
+        if (context != null) {
+            val drawing = sheet.drawingPatriarch
+            if (drawing != null) {
+                try {
+                    val shapes = when (drawing) {
+                        is org.apache.poi.xssf.usermodel.XSSFDrawing -> {
+                            drawing.shapes
+                        }
+                        is org.apache.poi.hssf.usermodel.HSSFPatriarch -> {
+                            drawing.children
+                        }
+                        else -> {
+                            emptyList()
+                        }
+                    }
+
+                    for (shape in shapes) {
+                        if (shape is Picture) {
+                            val picData = shape.pictureData.data
+                            val ext = shape.pictureData.suggestFileExtension()
+                            val picFile = java.io.File(context.cacheDir, "excel_pic_${System.currentTimeMillis()}_${sheetIndex}_${imagePaths.size}.$ext")
+                            try {
+                                java.io.FileOutputStream(picFile).use { fos ->
+                                    fos.write(picData)
+                                }
+                                imagePaths.add(picFile.absolutePath)
+                            } catch (_: Exception) {
+                                // 忽略
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    // 忽略绘图解析异常
+                }
+            }
+        }
 
         // 遍历所有行
         val rowIterator = sheet.rowIterator()
@@ -145,7 +184,7 @@ class ExcelParser : DocumentParser<ExcelParseResult> {
             }
 
             // 启发式判断表头（第一行且包含文本）
-            val isHeader = rowIndex == 0 && cells.any { it.isNotEmpty() } &&
+            val isHeader = (rowIndex == 0) && cells.any { it.isNotEmpty() } &&
                     cells.all { it.isEmpty() || !it.matches(Regex("^\\d+\\.?\\d*$")) }
 
             if (isHeader) {
@@ -189,7 +228,8 @@ class ExcelParser : DocumentParser<ExcelParseResult> {
             headers = headers,
             rows = normalizedRows,
             totalRows = normalizedRows.size,
-            totalCols = maxCols
+            totalCols = maxCols,
+            imagePaths = imagePaths
         )
     }
 

@@ -15,7 +15,8 @@ import java.io.InputStream
  */
 data class PdfPageData(
     val pageNumber: Int,
-    val paragraphs: List<String>
+    val paragraphs: List<String>,
+    val imagePaths: List<String> = emptyList()
 )
 
 /**
@@ -49,7 +50,7 @@ class PdfParser : DocumentParser<PdfParseResult> {
                 val fileName = documentFile?.name ?: "未知文件"
 
                 context.contentResolver.openInputStream(uri)?.use { inputStream ->
-                    parseInternal(inputStream, fileName)
+                    parseInternal(context, inputStream, fileName)
                 } ?: ParseResult.Error("无法打开文件输入流")
             } catch (e: Exception) {
                 ParseResult.Error("解析 PDF 文档失败: ${e.message}", e)
@@ -60,14 +61,14 @@ class PdfParser : DocumentParser<PdfParseResult> {
     override suspend fun parse(inputStream: InputStream, fileName: String): ParseResult<PdfParseResult> {
         return withContext(Dispatchers.IO) {
             try {
-                parseInternal(inputStream, fileName)
+                parseInternal(null, inputStream, fileName)
             } catch (e: Exception) {
                 ParseResult.Error("解析 PDF 文档失败: ${e.message}", e)
             }
         }
     }
 
-    private fun parseInternal(inputStream: InputStream, fileName: String): ParseResult<PdfParseResult> {
+    private fun parseInternal(context: Context?, inputStream: InputStream, fileName: String): ParseResult<PdfParseResult> {
         var document: PDDocument? = null
 
         return try {
@@ -81,7 +82,7 @@ class PdfParser : DocumentParser<PdfParseResult> {
             val stripper = PDFTextStripper()
             val pages = mutableListOf<PdfPageData>()
 
-            // 逐页提取文本
+            // 逐页提取文本和图片
             for (pageNum in 1..totalPages) {
                 stripper.startPage = pageNum
                 stripper.endPage = pageNum
@@ -89,11 +90,38 @@ class PdfParser : DocumentParser<PdfParseResult> {
 
                 // 智能分段
                 val paragraphs = smartSplitParagraphs(pageText)
+                
+                // 提取图片
+                val imagePaths = mutableListOf<String>()
+                if (context != null) {
+                    val page = document.getPage(pageNum - 1)
+                    val resources = page.resources
+                    if (resources != null) {
+                        for (name in resources.xObjectNames) {
+                            val xObject = resources.getXObject(name)
+                            if (xObject is com.tom_roush.pdfbox.pdmodel.graphics.image.PDImageXObject) {
+                                val bitmap = xObject.image
+                                if (bitmap != null) {
+                                    val picFile = java.io.File(context.cacheDir, "pdf_pic_${System.currentTimeMillis()}_${pageNum}_${imagePaths.size}.png")
+                                    try {
+                                        java.io.FileOutputStream(picFile).use { fos ->
+                                            bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 90, fos)
+                                        }
+                                        imagePaths.add(picFile.absolutePath)
+                                    } catch (_: Exception) {
+                                        // 忽略
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
 
                 pages.add(
                     PdfPageData(
                         pageNumber = pageNum,
-                        paragraphs = paragraphs
+                        paragraphs = paragraphs,
+                        imagePaths = imagePaths
                     )
                 )
             }
@@ -127,6 +155,7 @@ class PdfParser : DocumentParser<PdfParseResult> {
 
     /**
      * 智能分段：根据文本特征将页面内容拆分为段落
+     * 增加表格行启发式识别
      */
     private fun smartSplitParagraphs(text: String): List<String> {
         if (text.isEmpty()) return emptyList()
@@ -141,6 +170,9 @@ class PdfParser : DocumentParser<PdfParseResult> {
         lines.forEach { line ->
             val trimmedLine = line.trim()
 
+            // 启发式表格检测：如果一行中有多个连续大空格，可能是一个表格行
+            val isPossiblyTableRow = line.contains("    ") || line.contains("\t")
+
             when {
                 // 空行表示段落结束
                 trimmedLine.isEmpty() -> {
@@ -149,8 +181,18 @@ class PdfParser : DocumentParser<PdfParseResult> {
                         currentParagraph.clear()
                     }
                 }
+                // 表格行处理
+                isPossiblyTableRow -> {
+                    if (currentParagraph.isNotEmpty()) {
+                        paragraphs.add(currentParagraph.toString().trim())
+                        currentParagraph.clear()
+                    }
+                    // 将多个空格替换为统一的分隔符，方便阅读
+                    val formattedRow = trimmedLine.replace(Regex("\\s{2,}"), " | ")
+                    paragraphs.add("表格数据：$formattedRow")
+                }
                 // 标题特征（短行、不以标点结尾）
-                trimmedLine.length < 50 &&
+                (trimmedLine.length < 50) &&
                         !trimmedLine.endsWith("。") &&
                         !trimmedLine.endsWith("，") &&
                         !trimmedLine.endsWith("；") &&
@@ -185,53 +227,5 @@ class PdfParser : DocumentParser<PdfParseResult> {
         }
 
         return paragraphs.filter { it.isNotEmpty() }
-    }
-
-    /**
-     * 检测是否为扫描版PDF（需要OCR）
-     * 简单检测：检查是否有图片但没有文本
-     */
-    fun isScannedPdf(document: PDDocument): Boolean {
-        var hasImages = false
-        var hasText = false
-
-        val pages = document.pages
-        for (i in 0 until pages.count) {
-            val page = pages.get(i)
-            val resources = page.resources ?: continue
-
-            // 检查是否有图片
-            try {
-                val imageNames = resources.xObjectNames
-                if (imageNames != null) {
-                    for (name in imageNames) {
-                        val xObject = resources.getXObject(name)
-                        if (xObject is com.tom_roush.pdfbox.pdmodel.graphics.image.PDImageXObject) {
-                            hasImages = true
-                            break
-                        }
-                    }
-                }
-            } catch (e: Exception) {
-                // 忽略
-            }
-
-            if (hasImages) break
-        }
-
-        // 检查是否有文本（用前3页检测）
-        try {
-            val stripper = PDFTextStripper()
-            stripper.startPage = 1
-            stripper.endPage = minOf(3, document.numberOfPages)
-            val text = stripper.getText(document)?.trim()
-            if (!text.isNullOrEmpty()) {
-                hasText = true
-            }
-        } catch (e: Exception) {
-            // 忽略
-        }
-
-        return hasImages && !hasText
     }
 }

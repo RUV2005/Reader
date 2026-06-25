@@ -22,7 +22,9 @@ data class PptSlideData(
     val title: String,
     val content: List<String>,
     val notes: String = "",
-    val layout: String = ""
+    val layout: String = "",
+    val imagePaths: List<String> = emptyList(),
+    val tables: List<List<List<String>>> = emptyList()
 )
 
 /**
@@ -48,7 +50,7 @@ class PptParser : DocumentParser<PptParseResult> {
                 val extension = fileName.substringAfterLast(".", "")
 
                 context.contentResolver.openInputStream(uri)?.use { inputStream ->
-                    parseInternal(inputStream, fileName, extension)
+                    parseInternal(context, inputStream, fileName, extension)
                 } ?: ParseResult.Error("无法打开文件输入流")
             } catch (e: Exception) {
                 ParseResult.Error("解析 PPT 文档失败: ${e.message}", e)
@@ -60,7 +62,7 @@ class PptParser : DocumentParser<PptParseResult> {
         return withContext(Dispatchers.IO) {
             try {
                 val extension = fileName.substringAfterLast(".", "")
-                parseInternal(inputStream, fileName, extension)
+                parseInternal(null, inputStream, fileName, extension)
             } catch (e: Exception) {
                 ParseResult.Error("解析 PPT 文档失败: ${e.message}", e)
             }
@@ -68,15 +70,16 @@ class PptParser : DocumentParser<PptParseResult> {
     }
 
     private fun parseInternal(
+        context: Context?,
         inputStream: InputStream,
         fileName: String,
         extension: String
     ): ParseResult<PptParseResult> {
         return try {
             val slides = when (extension.lowercase()) {
-                "pptx" -> parsePptx(inputStream)
+                "pptx" -> parsePptx(context, inputStream)
                 "ppt" -> parsePpt(inputStream)
-                else -> parsePptx(inputStream)
+                else -> parsePptx(context, inputStream)
             }
 
             ParseResult.Success(
@@ -94,7 +97,7 @@ class PptParser : DocumentParser<PptParseResult> {
     /**
      * 解析 .pptx 格式
      */
-    private fun parsePptx(inputStream: InputStream): List<PptSlideData> {
+    private fun parsePptx(context: Context?, inputStream: InputStream): List<PptSlideData> {
         val slides = mutableListOf<PptSlideData>()
 
         XMLSlideShow(inputStream).use { ppt ->
@@ -102,16 +105,60 @@ class PptParser : DocumentParser<PptParseResult> {
             for (index in slideList.indices) {
                 val slide = slideList[index]
                 val title = extractPptxTitle(slide)
-                val content = extractPptxContent(slide)
+                val content = mutableListOf<String>()
                 val notes = extractPptxNotes(slide)
+                val imagePaths = mutableListOf<String>()
+                val tables = mutableListOf<List<List<String>>>()
+
+                for (shape in slide.shapes) {
+                    when (shape) {
+                        is XSLFTextShape -> {
+                            val text = shape.text?.trim()
+                            if (!text.isNullOrEmpty()) {
+                                // 按段落拆分
+                                val paragraphs = text.split("\n")
+                                    .map { it.trim() }
+                                    .filter { it.isNotEmpty() }
+                                content.addAll(paragraphs)
+                            }
+                        }
+                        is XSLFTable -> {
+                            val tableData = mutableListOf<List<String>>()
+                            for (row in shape.rows) {
+                                val rowCells = row.cells.map { it.text?.trim() ?: "" }
+                                tableData.add(rowCells)
+                            }
+                            if (tableData.isNotEmpty()) {
+                                tables.add(tableData)
+                            }
+                        }
+                        is org.apache.poi.xslf.usermodel.XSLFPictureShape -> {
+                            if (context != null) {
+                                val picData = shape.pictureData.data
+                                val ext = shape.pictureData.suggestFileExtension()
+                                val picFile = java.io.File(context.cacheDir, "ppt_pic_${System.currentTimeMillis()}_${index}_${imagePaths.size}.$ext")
+                                try {
+                                    java.io.FileOutputStream(picFile).use { fos ->
+                                        fos.write(picData)
+                                    }
+                                    imagePaths.add(picFile.absolutePath)
+                                } catch (e: Exception) {
+                                    // 忽略
+                                }
+                            }
+                        }
+                    }
+                }
 
                 slides.add(
                     PptSlideData(
                         slideNumber = index + 1,
                         title = title,
-                        content = content,
+                        content = content.distinct(),
                         notes = notes,
-                        layout = ""
+                        layout = "",
+                        imagePaths = imagePaths,
+                        tables = tables
                     )
                 )
             }

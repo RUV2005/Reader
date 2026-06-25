@@ -31,20 +31,10 @@ enum class FileType {
     WORD, EXCEL, PPT, PDF
 }
 
-// 模拟数据
-val sampleFiles = listOf(
-    DocumentFile("1", "项目计划书.docx", FileType.WORD, "256 KB", "2024-06-10 14:30", "/storage/documents/"),
-    DocumentFile("2", "销售数据报表.xlsx", FileType.EXCEL, "1.2 MB", "2024-06-09 09:15", "/storage/documents/"),
-    DocumentFile("3", "产品发布会.pptx", FileType.PPT, "5.8 MB", "2024-06-08 16:45", "/storage/documents/"),
-    DocumentFile("4", "合同协议.pdf", FileType.PDF, "320 KB", "2024-06-07 11:20", "/storage/documents/"),
-    DocumentFile("5", "年度总结.docx", FileType.WORD, "180 KB", "2024-06-06 17:00", "/storage/documents/"),
-    DocumentFile("6", "财务报表.xlsx", FileType.EXCEL, "890 KB", "2024-06-05 08:30", "/storage/documents/"),
-)
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FileListScreen(
-    files: List<DocumentFile> = sampleFiles,
+    files: List<DocumentFile>,
     onFileClick: (DocumentFile) -> Unit = {},
     onBackClick: () -> Unit = {},
     onPickFile: () -> Unit = {},
@@ -56,7 +46,7 @@ fun FileListScreen(
         files.filter { file ->
             val matchesSearch = searchQuery.isBlank() ||
                     file.name.contains(searchQuery, ignoreCase = true)
-            val matchesFilter = selectedFilter == null || file.type == selectedFilter
+            val matchesFilter = (selectedFilter == null) || (file.type == selectedFilter)
             matchesSearch && matchesFilter
         }
     }
@@ -127,8 +117,7 @@ fun FileListScreen(
                 items(filteredFiles, key = { it.id }) { file ->
                     FileListItem(
                         file = file,
-                        onClick = { onFileClick(file) },
-                    )
+                    ) { onFileClick(file) }
                 }
 
                 if (filteredFiles.isEmpty()) {

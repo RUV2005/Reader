@@ -5,10 +5,13 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -20,14 +23,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.danmo.reader.R
 import com.danmo.reader.common.ReaderControlBar
 import com.danmo.reader.tts.TtsCallbacks
@@ -43,6 +47,8 @@ data class PptSlide(
     val title: String,
     val content: List<String>,
     val notes: String = "",
+    val images: List<String> = emptyList(),
+    val tables: List<List<List<String>>> = emptyList(),
 )
 
 data class PptDocument(
@@ -53,72 +59,18 @@ data class PptDocument(
     val lastReadSlide: Int = 0,
 )
 
-// ==================== 模拟数据 ====================
-
-val samplePptDoc = PptDocument(
-    filePath = "/storage/documents/产品发布会.pptx",
-    fileName = "产品发布会.pptx",
-    totalSlides = 5,
-    slides = listOf(
-        PptSlide(
-            slideNumber = 1,
-            title = "封面",
-            content = listOf("2024年度产品发布会", "创新科技，引领未来"),
-            notes = "这是封面页，包含会议主题和标语",
-        ),
-        PptSlide(
-            slideNumber = 2,
-            title = "目录",
-            content = listOf("1. 公司介绍", "2. 产品亮点", "3. 市场分析", "4. 未来规划"),
-            notes = "目录页，概述本次发布会的主要内容",
-        ),
-        PptSlide(
-            slideNumber = 3,
-            title = "公司介绍",
-            content = listOf(
-                "成立于2018年，专注于人工智能技术研发",
-                "核心团队来自顶尖高校和知名企业",
-                "已获得三轮融资，估值超过10亿美元",
-                "服务客户超过5000家，遍布全球30个国家",
-            ),
-            notes = "介绍公司背景、团队实力和融资情况",
-        ),
-        PptSlide(
-            slideNumber = 4,
-            title = "产品亮点",
-            content = listOf(
-                "智能语音助手：支持多轮对话和上下文理解",
-                "自适应学习系统：根据用户习惯优化推荐",
-                "多模态交互：语音、文字、图像全面支持",
-                "隐私保护：端侧计算，数据不上云",
-            ),
-            notes = "重点介绍产品的四大核心亮点",
-        ),
-        PptSlide(
-            slideNumber = 5,
-            title = "谢谢观看",
-            content = listOf("联系方式：<contact@company.com>", "官方网站：[www.company.com](http://www.company.com)"),
-            notes = "结束页，提供联系方式",
-        ),
-    ),
-    lastReadSlide = 0,
-)
-
-// ==================== PPT阅读页面 ====================
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PptReaderScreen(
-    document: PptDocument = samplePptDoc,
+    document: PptDocument,
     onBackClick: () -> Unit = {},
     onSettingsClick: () -> Unit = {},
 ) {
-    val context = LocalContext.current
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
     var currentSlideIndex by remember { mutableIntStateOf(document.lastReadSlide) }
-    var isSpeaking by remember { mutableStateOf(false) }
+    var isSpeaking by remember { mutableStateOf(value = false) }
     var showNotes by remember { mutableStateOf(false) }
 
     val lazyListState = rememberLazyListState()
@@ -128,7 +80,7 @@ fun PptReaderScreen(
     val ttsCallbacks = remember(document, showNotes) {
         object : TtsCallbacks {
             override fun onUtteranceDone(): Boolean {
-                return currentSlideIndex < document.slides.size - 1
+                return (currentSlideIndex < (document.slides.size - 1))
             }
 
             override fun getCurrentText(): String {
@@ -137,6 +89,9 @@ fun PptReaderScreen(
                     append("第${slide.slideNumber}页，${slide.title}。")
                     slide.content.forEach { item ->
                         append("$item。")
+                    }
+                    if (slide.tables.isNotEmpty()) {
+                        append("包含${slide.tables.size}个表格。")
                     }
                     if (showNotes && slide.notes.isNotEmpty()) {
                         append("备注：${slide.notes}。")
@@ -173,7 +128,7 @@ fun PptReaderScreen(
     LaunchedEffect(showNotes) {
         if (isSpeaking) {
             ttsController.stop()
-            kotlinx.coroutines.delay(200)
+            kotlinx.coroutines.delay(timeMillis = 200)
             ttsController.speakCurrent()
         }
     }
@@ -189,7 +144,7 @@ fun PptReaderScreen(
         }
         lazyListState.animateScrollToItem(
             index = currentSlideIndex,
-            scrollOffset = scrollOffset
+            scrollOffset = scrollOffset,
         )
     }
 
@@ -443,7 +398,7 @@ fun SlideCard(
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
-                        text = "${slide.slideNumber}",
+                        text = slide.slideNumber.toString(),
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.White,
@@ -461,6 +416,28 @@ fun SlideCard(
             }
 
             Spacer(modifier = Modifier.height(12.dp))
+
+            if (slide.images.isNotEmpty()) {
+                LazyRow(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(120.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    itemsIndexed(slide.images) { imgIndex, imagePath ->
+                        AsyncImage(
+                            model = imagePath,
+                            contentDescription = "幻灯片插图 ${imgIndex + 1}",
+                            modifier = Modifier
+                                .height(120.dp)
+                                .aspectRatio(16f / 9f)
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(Color.Black),
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+            }
 
             slide.content.forEach { content ->
                 Row(
@@ -486,6 +463,14 @@ fun SlideCard(
                         fontWeight = if (isCurrent) FontWeight.Medium else FontWeight.Normal,
                         lineHeight = 24.sp,
                     )
+                }
+            }
+
+            if (slide.tables.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(12.dp))
+                slide.tables.forEach { table ->
+                    PptTableItem(rows = table, isCurrent = isCurrent)
+                    Spacer(modifier = Modifier.height(8.dp))
                 }
             }
 
@@ -516,6 +501,45 @@ fun SlideCard(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun PptTableItem(
+    rows: List<List<String>>,
+    isCurrent: Boolean,
+) {
+    val scrollState = rememberScrollState()
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(if (isCurrent) Color.White.copy(alpha = 0.1f) else Color.Black.copy(alpha = 0.2f))
+            .padding(8.dp)
+    ) {
+        rows.forEach { row ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(scrollState)
+                    .padding(vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                row.forEach { cell ->
+                    Text(
+                        text = cell,
+                        fontSize = 12.sp,
+                        color = if (isCurrent) Color(0xFFFFFF00) else Color.White,
+                        modifier = Modifier
+                            .width(100.dp)
+                            .padding(2.dp),
+                        maxLines = 3,
+                        textAlign = TextAlign.Start
+                    )
+                }
+            }
+            HorizontalDivider(color = Color.Gray.copy(alpha = 0.3f), thickness = 0.5.dp)
         }
     }
 }
@@ -561,6 +585,13 @@ fun CurrentSlideIndicator(
 @Composable
 fun PptReaderScreenPreview() {
     MaterialTheme {
-        PptReaderScreen()
+        PptReaderScreen(
+            document = PptDocument(
+                filePath = "",
+                fileName = "预览幻灯片.pptx",
+                totalSlides = 1,
+                slides = listOf(PptSlide(1, "标题", listOf("内容")))
+            )
+        )
     }
 }

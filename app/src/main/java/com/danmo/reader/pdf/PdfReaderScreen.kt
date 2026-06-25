@@ -2,13 +2,16 @@ package com.danmo.reader.pdf
 
 import android.content.res.Configuration
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -19,7 +22,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -28,6 +30,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.danmo.reader.R
 import com.danmo.reader.common.ReaderControlBar
 import com.danmo.reader.tts.TtsCallbacks
@@ -41,6 +44,7 @@ import kotlin.math.abs
 data class PdfPage(
     val pageNumber: Int,
     val paragraphs: List<String>,
+    val images: List<String> = emptyList(),
 )
 
 data class PdfDocument(
@@ -52,89 +56,32 @@ data class PdfDocument(
     val lastReadParagraph: Int = 0,
 )
 
-// ==================== 模拟数据 ====================
-
-val samplePdfDoc = PdfDocument(
-    filePath = "/storage/documents/合同协议.pdf",
-    fileName = "合同协议.pdf",
-    totalPages = 3,
-    pages = listOf(
-        PdfPage(
-            pageNumber = 1,
-            paragraphs = listOf(
-                "合同编号：HT-2024-001",
-                "甲方（委托方）：科技有限公司",
-                "乙方（受托方）：软件开发工作室",
-                "签订日期：2024年1月15日",
-                "签订地点：北京市海淀区",
-                "",
-                "鉴于甲方需要开发一套面向视障用户的文档阅读辅助软件，乙方具备相应的技术能力和开发经验，双方经友好协商，达成如下协议。",
-            ),
-        ),
-        PdfPage(
-            pageNumber = 2,
-            paragraphs = listOf(
-                "第一条 项目内容",
-                "1.1 乙方负责为甲方开发一款支持Word、Excel、PPT、PDF格式的文档阅读应用。",
-                "1.2 应用需具备语音朗读、手势控制、高对比度显示等无障碍功能。",
-                "1.3 支持Android 8.0及以上系统版本。",
-                "",
-                "第二条 开发周期",
-                "2.1 项目总工期为90个工作日，自合同签订之日起计算。",
-                "2.2 乙方应按以下里程碑提交成果：需求分析（15日）、原型设计（20日）、开发实施（40日）、测试验收（15日）。",
-            ),
-        ),
-        PdfPage(
-            pageNumber = 3,
-            paragraphs = listOf(
-                "第三条 验收标准",
-                "3.1 应用需通过甲方组织的无障碍功能测试，包括TalkBack兼容性、语音朗读准确性、手势操作响应速度等。",
-                "3.2 乙方需提供完整的技术文档和用户手册。",
-                "",
-                "第四条 费用及支付",
-                "4.1 项目总费用为人民币伍拾万元整。",
-                "4.2 付款方式：合同签订后支付30%，原型确认后支付30%，验收合格后支付40%。",
-                "",
-                "第五条 保密条款",
-                "5.1 双方应对本合同内容及项目相关信息严格保密，未经对方书面同意不得向第三方披露。",
-                "",
-                "本合同一式两份，甲乙双方各执一份，具有同等法律效力。",
-            ),
-        ),
-    ),
-    lastReadPage = 0,
-    lastReadParagraph = 0,
-)
-
-// ==================== PDF阅读页面 ====================
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PdfReaderScreen(
-    document: PdfDocument = samplePdfDoc,
+    document: PdfDocument,
     onBackClick: () -> Unit = {},
     onSettingsClick: () -> Unit = {},
 ) {
-    val context = LocalContext.current
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
     var globalParagraphIndex by remember {
-        val initialValue = document.pages.take(document.lastReadPage.coerceAtLeast(0).coerceAtMost(document.pages.size))
+        val initialValue = document.pages.asSequence().take(document.lastReadPage.coerceAtLeast(0).coerceAtMost(document.pages.size))
             .sumOf { it.paragraphs.size } + document.lastReadParagraph.coerceAtLeast(0)
         mutableIntStateOf(initialValue.coerceIn(0, (document.pages.flatMap { it.paragraphs }.size - 1).coerceAtLeast(0)))
     }
-    var isSpeaking by remember { mutableStateOf(false) }
+    var isSpeaking by remember { mutableStateOf(value = false) }
 
     fun calculatePageAndParagraph(globalIndex: Int): Pair<Int, Int> {
         var remaining = globalIndex.coerceAtLeast(0)
         for ((pageIdx, page) in document.pages.withIndex()) {
             if (remaining < page.paragraphs.size) {
-                return pageIdx to remaining
+                return (pageIdx to remaining)
             }
             remaining -= page.paragraphs.size
         }
-        return document.pages.size - 1 to 0
+        return (document.pages.size - 1 to 0)
     }
 
     val allParagraphs = remember(document) {
@@ -143,9 +90,6 @@ fun PdfReaderScreen(
 
     val currentPageIndex = remember(globalParagraphIndex, allParagraphs) {
         calculatePageAndParagraph(globalParagraphIndex).first
-    }
-    val currentParagraphIndex = remember(globalParagraphIndex, allParagraphs) {
-        calculatePageAndParagraph(globalParagraphIndex).second
     }
 
     data class FlatParagraph(val globalIndex: Int, val pageIndex: Int, val paraIndex: Int, val text: String, val pageNumber: Int)
@@ -174,10 +118,8 @@ fun PdfReaderScreen(
 
             override fun getCurrentText(): String {
                 val text = allParagraphs.getOrNull(globalParagraphIndex) ?: ""
-                return if (text.isBlank()) {
+                return text.ifBlank {
                     "空段落"
-                } else {
-                    text
                 }
             }
 
@@ -216,7 +158,7 @@ fun PdfReaderScreen(
     }
 
     LaunchedEffect(globalParagraphIndex) {
-        kotlinx.coroutines.delay(50)
+        kotlinx.coroutines.delay(timeMillis = 50)
         val itemHeight = itemHeights[globalParagraphIndex] ?: 0
         val viewportCenter = viewportHeight / 2
         val scrollOffset = if (itemHeight > 0) {
@@ -226,7 +168,7 @@ fun PdfReaderScreen(
         }
         lazyListState.animateScrollToItem(
             index = globalParagraphIndex,
-            scrollOffset = scrollOffset
+            scrollOffset = scrollOffset,
         )
     }
 
@@ -410,9 +352,28 @@ fun PdfReaderScreen(
 
                     if (!isEmpty) {
                         // 修复：在 itemsIndexed 的 content 中直接渲染 PageDivider，不用 item()
-                        if (item.paraIndex == 0 && item.pageIndex > 0) {
-                            PageDivider(pageNumber = item.pageNumber)
-                            Spacer(modifier = Modifier.height(16.dp))
+                        if (item.paraIndex == 0) {
+                            if (item.pageIndex > 0) {
+                                PageDivider(pageNumber = item.pageNumber)
+                                Spacer(modifier = Modifier.height(16.dp))
+                            }
+                            
+                            // 显示本页图片
+                            val page = document.pages.getOrNull(item.pageIndex)
+                            if (page != null && page.images.isNotEmpty()) {
+                                page.images.forEach { imagePath ->
+                                    AsyncImage(
+                                        model = imagePath,
+                                        contentDescription = "第 ${item.pageNumber} 页插图",
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .heightIn(max = 200.dp)
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(Color.Black),
+                                    )
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                }
+                            }
                         }
 
                         Box(
@@ -517,15 +478,19 @@ fun PdfParagraphItem(
             text.startsWith("合同编号") ||
             text.startsWith("鉴于") ||
             text.startsWith("本合同")
+    
+    val isTable = text.startsWith("表格数据：")
 
     val backgroundColor = when {
         isCurrent -> Color(0xFFB91C1C).copy(alpha = 0.2f)
+        isTable -> Color.White.copy(alpha = 0.05f)
         else -> Color.Transparent
     }
 
     val textColor = when {
         isCurrent -> Color(0xFFFFFF00)
         isHeading -> Color(0xFFFF6B6B)
+        isTable -> Color(0xFF6BFF9E)
         else -> Color.White
     }
 
@@ -545,6 +510,7 @@ fun PdfParagraphItem(
             .fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
             .background(backgroundColor)
+            .then(if (isTable) Modifier.border(0.5.dp, Color.Gray.copy(alpha = 0.3f), RoundedCornerShape(8.dp)) else Modifier)
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 10.dp)
             .semantics {
@@ -552,12 +518,13 @@ fun PdfParagraphItem(
             },
     ) {
         Text(
-            text = text,
+            text = if (isTable) text.substringAfter("表格数据：") else text,
             fontSize = fontSize,
             fontWeight = fontWeight,
             color = textColor,
             lineHeight = 28.sp,
             textAlign = TextAlign.Start,
+            modifier = if (isTable) Modifier.horizontalScroll(rememberScrollState()) else Modifier
         )
     }
 }
@@ -581,7 +548,7 @@ fun CurrentPositionIndicator(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
-            text = "$currentPage",
+            text = currentPage.toString(),
             fontSize = 16.sp,
             fontWeight = FontWeight.Bold,
             color = Color.White,
@@ -615,6 +582,13 @@ fun CurrentPositionIndicator(
 @Composable
 fun PdfReaderScreenPreview() {
     MaterialTheme {
-        PdfReaderScreen()
+        PdfReaderScreen(
+            document = PdfDocument(
+                filePath = "",
+                fileName = "预览文档.pdf",
+                totalPages = 1,
+                pages = listOf(PdfPage(1, listOf("内容")))
+            )
+        )
     }
 }

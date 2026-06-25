@@ -1,5 +1,6 @@
 package com.danmo.reader
 
+import android.content.res.Configuration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -14,7 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
@@ -25,20 +26,29 @@ import com.danmo.reader.data.repository.RecentFileRepository
 
 // ==================== 数据模型 ====================
 
+/**
+ * 首页功能卡片的数据结构
+ */
 data class FunctionCardData(
-    val title: String,
-    val subtitle: String,
-    val iconRes: Int,
-    val backgroundColor: Color
+    val title: String,            // 卡片标题 (如: 打开Word)
+    val subtitle: String,         // 副标题 (如: 打开以查看文档)
+    val iconRes: Int,             // 卡片显示的图标资源 ID
+    val backgroundColor: Color    // 卡片的背景主题色
 )
 
+/**
+ * 底部/侧边导航项的数据结构
+ */
 data class BottomNavItemData(
-    val label: String,
-    val iconRes: Int
+    val label: String,            // 导航项显示的文字
+    val iconRes: Int              // 导航项显示的图标
 )
 
-// ==================== 模拟数据 ====================
+// ==================== 静态配置数据 ====================
 
+/**
+ * 定义首页展示的四种核心文档类型入口
+ */
 val functionCards = listOf(
     FunctionCardData(
         title = "打开Word",
@@ -66,90 +76,201 @@ val functionCards = listOf(
     )
 )
 
+/**
+ * 导航栏项配置
+ */
 val bottomNavItems = listOf(
     BottomNavItemData("文件", R.drawable.ic_files),
     BottomNavItemData("首页", R.drawable.ic_home),
     BottomNavItemData("设置", R.drawable.ic_settings_nav)
 )
 
-// ==================== 主页面 ====================
+// ==================== 首页主屏幕 ====================
 
+/**
+ * 首页 Composable，支持响应式布局（自动切换横竖屏结构）
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
-    onNavigateToShelf: () -> Unit = {},
-    onNavigateToProfile: () -> Unit = {},
-    onFunctionCardClick: (String) -> Unit = {},
-    onRecentFileClick: (RecentFile) -> Unit = {},
-    recentFiles: List<RecentFile> = emptyList(),
+    onNavigateToShelf: () -> Unit = {},          // 切换到“文件”Tab的回调
+    onNavigateToProfile: () -> Unit = {},        // 切换到“设置”Tab的回调
+    onSettingsClick: () -> Unit = {},            // 点击右上角设置按钮的回调
+    onFunctionCardClick: (String) -> Unit = {},  // 点击文档类型卡片的回调
+    onRecentFileClick: (RecentFile) -> Unit = {}, // 点击最近打开文件的回调
+    recentFiles: List<RecentFile> = emptyList(), // 最近文件历史数据列表
 ) {
-    var selectedTab by remember { mutableIntStateOf(1) }
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    var selectedTab by remember { mutableIntStateOf(1) } // 首页默认索引为 1
 
-    Scaffold(
-        bottomBar = {
-            BottomNavigationBar(
-                selectedTab = selectedTab,
-                onTabSelected = { index ->
-                    selectedTab = index
-                    when (index) {
-                        0 -> onNavigateToShelf()
-                        1 -> { /* 已在首页 */ }
-                        2 -> onNavigateToProfile()
-                    }
-                }
-            )
-        },
-        floatingActionButton = {
-            ScanFloatingButton(
-                onScanClick = { /* TODO: 打开扫描功能 */ }
-            )
-        },
-        floatingActionButtonPosition = FabPosition.Center
-    ) { paddingValues ->
-        LazyColumn(
+    if (isLandscape) {
+        // ── 横屏布局方案 ────────────────────────────────
+        // 采用“左侧导航导轨 + 右侧双栏内容”的结构
+        Row(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
-                .background(Color(0xFFF5F5F5)),
-            contentPadding = PaddingValues(bottom = 16.dp)
+                .background(Color(0xFFF5F5F5))
+                .systemBarsPadding() // 避免遮挡系统状态栏/手势条
         ) {
-            item {
-                HeaderSection(
-                    greeting = "下午好",
-                    subtitle = "高效阅读每一天",
-                    onSettingsClick = { /* TODO */ }
-                )
+            // 1. 左侧导航导轨 (NavigationRail)
+            NavigationRail(
+                containerColor = Color.White,
+                header = {
+                    ScanFloatingButton {
+                        /* TODO: 实现扫描识字功能 */
+                    }
+                },
+                modifier = Modifier.fillMaxHeight()
+            ) {
+                Spacer(modifier = Modifier.weight(1f))
+                bottomNavItems.forEachIndexed { index, item ->
+                    val isSelected = selectedTab == index
+                    NavigationRailItem(
+                        selected = isSelected,
+                        onClick = {
+                            selectedTab = index
+                            when (index) {
+                                0 -> onNavigateToShelf()
+                                1 -> { /* 已经在首页 */ }
+                                2 -> onNavigateToProfile()
+                            }
+                        },
+                        icon = {
+                            Icon(
+                                painter = painterResource(id = item.iconRes),
+                                contentDescription = item.label,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        },
+                        label = { Text(item.label, fontSize = 11.sp) },
+                        colors = NavigationRailItemDefaults.colors(
+                            selectedIconColor = Color(0xFF4A6FA5),
+                            selectedTextColor = Color(0xFF4A6FA5),
+                            unselectedIconColor = Color(0xFF999999),
+                            unselectedTextColor = Color(0xFF999999),
+                            indicatorColor = Color(0xFF4A6FA5).copy(alpha = 0.1f)
+                        )
+                    )
+                }
+                Spacer(modifier = Modifier.weight(1f))
             }
 
-            item {
-                FunctionCardsGrid(
-                    cards = functionCards,
-                    onCardClick = onFunctionCardClick
-                )
-            }
+            // 2. 右侧双栏内容区
+            Row(modifier = Modifier.weight(1f).fillMaxHeight()) {
+                // 左栏：放置欢迎语和四个核心功能卡片
+                LazyColumn(
+                    modifier = Modifier.weight(1.2f).fillMaxHeight(),
+                    contentPadding = PaddingValues(16.dp)
+                ) {
+                    item {
+                        HeaderSection(
+                            greeting = "下午好",
+                            subtitle = "高效阅读每一天",
+                            isLandscape = true,
+                            onSettingsClick = onSettingsClick
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                    }
+                    item {
+                        // 横屏下卡片平铺排列，不使用竖屏下的重叠负位移
+                        FunctionCardsGrid(
+                            cards = functionCards,
+                            useOffset = false,
+                            isLandscape = true,
+                            onCardClick = onFunctionCardClick
+                        )
+                    }
+                }
 
-            item {
-                RecentFilesSection(
-                    files = recentFiles,
-                    onFileClick = onRecentFileClick
+                // 右栏：放置最近文件列表
+                LazyColumn(
+                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                    contentPadding = PaddingValues(16.dp)
+                ) {
+                    item {
+                        RecentFilesSection(
+                            files = recentFiles,
+                            onFileClick = onRecentFileClick
+                        )
+                    }
+                }
+            }
+        }
+    } else {
+        // ── 竖屏布局方案 ────────────────────────────────
+        // 采用经典的“列表滚动 + 底部导航栏”结构
+        Scaffold(
+            bottomBar = {
+                BottomNavigationBar(
+                    selectedTab = selectedTab,
+                    onTabSelected = { index ->
+                        selectedTab = index
+                        when (index) {
+                            0 -> onNavigateToShelf()
+                            1 -> { /* 已经在首页 */ }
+                            2 -> onNavigateToProfile()
+                        }
+                    }
                 )
+            },
+            floatingActionButton = {
+                ScanFloatingButton {
+                    /* TODO: 实现扫描识字功能 */
+                }
+            },
+            floatingActionButtonPosition = FabPosition.Center
+        ) { paddingValues ->
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .background(Color(0xFFF5F5F5)),
+                contentPadding = PaddingValues(bottom = 16.dp)
+            ) {
+                // 1. 顶部 Header 区
+                item {
+                    HeaderSection(
+                        greeting = "下午好",
+                        subtitle = "高效阅读每一天",
+                        onSettingsClick = onSettingsClick
+                    )
+                }
+
+                // 2. 功能入口卡片网格
+                item {
+                    FunctionCardsGrid(
+                        cards = functionCards,
+                        onCardClick = onFunctionCardClick
+                    )
+                }
+
+                // 3. 最近文件历史记录
+                item {
+                    RecentFilesSection(
+                        files = recentFiles,
+                        onFileClick = onRecentFileClick
+                    )
+                }
             }
         }
     }
 }
 
-// ==================== Header 区域 ====================
+// ==================== HeaderSection (顶部欢迎区) ====================
 
 @Composable
 fun HeaderSection(
     greeting: String,
     subtitle: String,
+    isLandscape: Boolean = false,
     onSettingsClick: () -> Unit
 ) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(180.dp)
+            .height(if (isLandscape) 70.dp else 180.dp) // 横屏下极大压缩高度以节省垂直空间
+            .clip(RoundedCornerShape(if (isLandscape) 12.dp else 0.dp))
             .background(
                 brush = Brush.verticalGradient(
                     colors = listOf(
@@ -158,25 +279,29 @@ fun HeaderSection(
                     )
                 )
             )
-            .padding(horizontal = 20.dp, vertical = 24.dp)
+            .padding(horizontal = 20.dp, vertical = if (isLandscape) 8.dp else 24.dp)
     ) {
         Column(
-            modifier = Modifier.align(Alignment.TopStart)
+            modifier = Modifier.align(Alignment.CenterStart)
         ) {
             Text(
                 text = greeting,
                 color = Color.White,
-                fontSize = 28.sp,
+                fontSize = if (isLandscape) 20.sp else 28.sp,
                 fontWeight = FontWeight.Bold
             )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = subtitle,
-                color = Color.White.copy(alpha = 0.8f),
-                fontSize = 14.sp
-            )
+            if (!isLandscape) {
+                // 竖屏下显示鼓励语，横屏下为节省空间而隐藏
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = subtitle,
+                    color = Color.White.copy(alpha = 0.8f),
+                    fontSize = 14.sp
+                )
+            }
         }
 
+        // 右上角快速设置按钮
         Box(
             modifier = Modifier
                 .align(Alignment.TopEnd)
@@ -196,19 +321,26 @@ fun HeaderSection(
     }
 }
 
-// ==================== 功能卡片网格 ====================
+// ==================== FunctionCards (功能卡片网格) ====================
 
+/**
+ * 将四个功能入口按 2x2 网格排列
+ */
 @Composable
 fun FunctionCardsGrid(
     cards: List<FunctionCardData>,
+    useOffset: Boolean = true,
+    isLandscape: Boolean = false,
     onCardClick: (String) -> Unit
 ) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp)
-            .offset(y = (-30).dp)
+            .padding(horizontal = if (useOffset) 16.dp else 0.dp)
+            // 竖屏下通过负位移实现卡片与 Header 视觉上的“衔接”
+            .then(if (useOffset) Modifier.offset(y = (-30).dp) else Modifier)
     ) {
+        // 第一行卡片
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -216,6 +348,7 @@ fun FunctionCardsGrid(
             cards.take(2).forEach { card ->
                 FunctionCardItem(
                     card = card,
+                    isLandscape = isLandscape,
                     modifier = Modifier.weight(1f),
                     onClick = { onCardClick(card.title) }
                 )
@@ -224,13 +357,15 @@ fun FunctionCardsGrid(
 
         Spacer(modifier = Modifier.height(12.dp))
 
+        // 第二行卡片
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            cards.drop(2).take(2).forEach { card ->
+            cards.asSequence().drop(2).take(2).forEach { card ->
                 FunctionCardItem(
                     card = card,
+                    isLandscape = isLandscape,
                     modifier = Modifier.weight(1f),
                     onClick = { onCardClick(card.title) }
                 )
@@ -239,15 +374,19 @@ fun FunctionCardsGrid(
     }
 }
 
+/**
+ * 单个功能卡片组件，支持响应式尺寸调整
+ */
 @Composable
 fun FunctionCardItem(
     card: FunctionCardData,
     modifier: Modifier = Modifier,
+    isLandscape: Boolean = false,
     onClick: () -> Unit
 ) {
     Card(
         modifier = modifier
-            .height(110.dp)
+            .height(if (isLandscape) 85.dp else 110.dp)
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
@@ -260,11 +399,11 @@ fun FunctionCardItem(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(16.dp)
+                .padding(if (isLandscape) 12.dp else 16.dp)
         ) {
             Text(
                 text = card.title,
-                fontSize = 16.sp,
+                fontSize = if (isLandscape) 14.sp else 16.sp,
                 fontWeight = FontWeight.Medium,
                 color = Color.White
             )
@@ -276,10 +415,11 @@ fun FunctionCardItem(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 modifier = Modifier.fillMaxWidth()
             ) {
+                // 卡片底部图标
                 Box(
                     modifier = Modifier
-                        .size(36.dp)
-                        .clip(RoundedCornerShape(10.dp))
+                        .size(if (isLandscape) 28.dp else 36.dp)
+                        .clip(RoundedCornerShape(8.dp))
                         .background(card.backgroundColor),
                     contentAlignment = Alignment.Center
                 ) {
@@ -287,21 +427,24 @@ fun FunctionCardItem(
                         painter = painterResource(id = card.iconRes),
                         contentDescription = card.title,
                         tint = Color.White,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(if (isLandscape) 16.dp else 20.dp)
                     )
                 }
 
-                Text(
-                    text = card.subtitle,
-                    fontSize = 11.sp,
-                    color = Color.White.copy(alpha = 0.8f)
-                )
+                if (!isLandscape) {
+                    // 横屏下隐藏详细描述以精简界面
+                    Text(
+                        text = card.subtitle,
+                        fontSize = 11.sp,
+                        color = Color.White.copy(alpha = 0.8f)
+                    )
+                }
             }
         }
     }
 }
 
-// ==================== 底部导航栏 ====================
+// ==================== BottomNavigationBar (底部导航栏) ====================
 
 @Composable
 fun BottomNavigationBar(
@@ -351,8 +494,11 @@ fun BottomNavigationBar(
     }
 }
 
-// ==================== 悬浮扫描按钮 ====================
+// ==================== ScanFloatingButton (悬浮按钮) ====================
 
+/**
+ * 屏幕中心的扫描悬浮按钮，支持手势和屏幕阅读器
+ */
 @Composable
 fun ScanFloatingButton(
     onScanClick: () -> Unit
@@ -374,15 +520,18 @@ fun ScanFloatingButton(
     ) {
         Icon(
             painter = painterResource(id = R.drawable.ic_card_camera),
-            contentDescription = "扫描",
+            contentDescription = "扫描识字",
             tint = Color.White,
             modifier = Modifier.size(32.dp)
         )
     }
 }
 
-// ==================== 最近打开文件区域 ====================
+// ==================== RecentFilesSection (最近历史) ====================
 
+/**
+ * 展示最近打开过的文档列表
+ */
 @Composable
 fun RecentFilesSection(
     files: List<RecentFile>,
@@ -409,7 +558,7 @@ fun RecentFilesSection(
                     text = "查看全部",
                     fontSize = 14.sp,
                     color = Color(0xFF4A6FA5),
-                    modifier = Modifier.clickable { /* TODO */ }
+                    modifier = Modifier.clickable { /* TODO: 跳转至文件列表 Tab */ }
                 )
             }
         }
@@ -432,6 +581,9 @@ fun RecentFilesSection(
     }
 }
 
+/**
+ * 列表为空时的占位 UI
+ */
 @Composable
 private fun EmptyRecentFiles() {
     Column(
@@ -461,6 +613,9 @@ private fun EmptyRecentFiles() {
     }
 }
 
+/**
+ * 单条历史文件记录项
+ */
 @Composable
 fun RecentFileItem(
     file: RecentFile,
@@ -531,7 +686,7 @@ fun RecentFileItem(
     }
 }
 
-// ==================== 预览 ====================
+// ==================== 界面预览 ====================
 
 @Preview(showBackground = true, showSystemUi = true)
 @Composable

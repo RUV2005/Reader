@@ -7,8 +7,11 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -19,7 +22,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -28,6 +30,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.danmo.reader.R
 import com.danmo.reader.common.ReaderControlBar
 import com.danmo.reader.common.ReaderControlButton
@@ -46,25 +49,7 @@ data class ExcelDocument(
     val headers: List<String>,
     val rows: List<List<String>>,
     val lastReadRow: Int = 0,
-)
-
-// ==================== 模拟数据 ====================
-
-val sampleExcelDoc = ExcelDocument(
-    filePath = "/storage/documents/销售数据报表.xlsx",
-    fileName = "销售数据报表.xlsx",
-    sheetName = "2024年Q1",
-    headers = listOf("月份", "产品", "销售额", "销量", "增长率"),
-    rows = listOf(
-        listOf("1月", "智能手机", "1,250,000", "500", "+12%"),
-        listOf("1月", "平板电脑", "680,000", "200", "+8%"),
-        listOf("2月", "智能手机", "1,380,000", "550", "+10%"),
-        listOf("2月", "平板电脑", "720,000", "220", "+6%"),
-        listOf("3月", "智能手机", "1,520,000", "600", "+15%"),
-        listOf("3月", "平板电脑", "850,000", "260", "+18%"),
-        listOf("合计", "-", "5,400,000", "1,780", "+11.5%"),
-    ),
-    lastReadRow = 0,
+    val images: List<String> = emptyList(),
 )
 
 // ==================== 朗读模式 ====================
@@ -74,25 +59,23 @@ enum class ReadMode {
     COLUMN_BY_COLUMN,
 }
 
-// ==================== Excel阅读页面 ====================
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ExcelReaderScreen(
-    document: ExcelDocument = sampleExcelDoc,
+    document: ExcelDocument,
     onBackClick: () -> Unit = {},
     onSettingsClick: () -> Unit = {},
 ) {
-    val context = LocalContext.current
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
     var currentRowIndex by remember { mutableIntStateOf(document.lastReadRow) }
-    var isSpeaking by remember { mutableStateOf(false) }
+    var isSpeaking by remember { mutableStateOf(value = false) }
     var readMode by remember { mutableStateOf(ReadMode.ROW_BY_ROW) }
     var currentColIndex by remember { mutableIntStateOf(0) }
 
     val lazyListState = rememberLazyListState()
+    val sharedHorizontalScrollState = rememberScrollState()
     var viewportHeight by remember { mutableIntStateOf(0) }
     val itemHeights = remember { mutableStateMapOf<Int, Int>() }
 
@@ -100,11 +83,11 @@ fun ExcelReaderScreen(
         object : TtsCallbacks {
             override fun onUtteranceDone(): Boolean {
                 return when (readMode) {
-                    ReadMode.ROW_BY_ROW -> currentRowIndex < document.rows.size - 1
+                    ReadMode.ROW_BY_ROW -> (currentRowIndex < (document.rows.size - 1))
                     ReadMode.COLUMN_BY_COLUMN -> {
                         val totalCells = document.rows.size * document.headers.size
                         val currentCell = currentRowIndex * document.headers.size + currentColIndex
-                        currentCell < totalCells - 1
+                        (currentCell < (totalCells - 1))
                     }
                 }
             }
@@ -187,17 +170,17 @@ fun ExcelReaderScreen(
     }
 
     LaunchedEffect(currentRowIndex) {
-        kotlinx.coroutines.delay(50)
+        kotlinx.coroutines.delay(timeMillis = 50)
         val itemHeight = itemHeights[currentRowIndex] ?: 0
         val viewportCenter = viewportHeight / 2
         val scrollOffset = if (itemHeight > 0) {
-            -viewportCenter + itemHeight / 2
+            (-viewportCenter) + (itemHeight / 2)
         } else {
-            -viewportCenter + 40
+            (-viewportCenter) + 40
         }
         lazyListState.animateScrollToItem(
             index = currentRowIndex,
-            scrollOffset = scrollOffset
+            scrollOffset = scrollOffset,
         )
     }
 
@@ -384,9 +367,37 @@ fun ExcelReaderScreen(
                     .padding(horizontal = 12.dp, vertical = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
+                if (document.images.isNotEmpty()) {
+                    item {
+                        Text(
+                            text = "表格图片 (${document.images.size})",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF217346),
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+                        androidx.compose.foundation.lazy.LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            items(document.images) { imagePath ->
+                                AsyncImage(
+                                    model = imagePath,
+                                    contentDescription = "表格插图",
+                                    modifier = Modifier
+                                        .size(120.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(Color(0xFF2A2A2A)),
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(16.dp))
+                    }
+                }
+
                 item(key = "header") {
                     ExcelHeaderRow(
                         headers = document.headers,
+                        scrollState = sharedHorizontalScrollState,
                         onClick = { speakHeaders() },
                     )
                 }
@@ -414,11 +425,18 @@ fun ExcelReaderScreen(
                             row = row,
                             headers = document.headers,
                             isCurrent = isCurrent,
+                            currentColIndex = currentColIndex,
+                            readMode = readMode,
                             isTotalRow = isTotalRow,
                             index = index,
-                            onClick = {
+                            scrollState = sharedHorizontalScrollState,
+                            onClick = { colIdx ->
                                 currentRowIndex = index
-                                currentColIndex = 0
+                                if (colIdx != -1) {
+                                    currentColIndex = colIdx
+                                } else {
+                                    currentColIndex = 0
+                                }
                                 ttsController.speakCurrent()
                             },
                         )
@@ -467,6 +485,7 @@ fun ExcelReaderScreen(
 @Composable
 fun ExcelHeaderRow(
     headers: List<String>,
+    scrollState: androidx.compose.foundation.ScrollState,
     onClick: () -> Unit,
 ) {
     Card(
@@ -480,8 +499,8 @@ fun ExcelHeaderRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .horizontalScroll(scrollState)
                 .padding(horizontal = 8.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically,
         ) {
             headers.forEach { header ->
@@ -490,7 +509,7 @@ fun ExcelHeaderRow(
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.White,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.width(100.dp),
                     textAlign = TextAlign.Center,
                     maxLines = 1,
                 )
@@ -506,12 +525,16 @@ fun ExcelDataRow(
     row: List<String>,
     headers: List<String>,
     isCurrent: Boolean,
+    currentColIndex: Int,
+    readMode: ReadMode,
     isTotalRow: Boolean,
     index: Int,
-    onClick: () -> Unit,
+    scrollState: androidx.compose.foundation.ScrollState,
+    onClick: (Int) -> Unit,
 ) {
     val backgroundColor = when {
-        isCurrent -> Color(0xFF217346).copy(alpha = 0.3f)
+        isCurrent && readMode == ReadMode.ROW_BY_ROW -> Color(0xFF217346).copy(alpha = 0.3f)
+        isCurrent && readMode == ReadMode.COLUMN_BY_COLUMN -> Color(0xFF217346).copy(alpha = 0.15f)
         isTotalRow -> Color(0xFF333333)
         else -> Color(0xFF2A2A2A)
     }
@@ -522,16 +545,10 @@ fun ExcelDataRow(
         else -> Color.White
     }
 
-    val fontWeight = when {
-        isCurrent -> FontWeight.Bold
-        isTotalRow -> FontWeight.Bold
-        else -> FontWeight.Normal
-    }
-
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .clickable { onClick(-1) }
             .semantics {
                 contentDescription = buildString {
                     append("第${index + 1}行。")
@@ -549,20 +566,31 @@ fun ExcelDataRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .horizontalScroll(scrollState)
                 .padding(horizontal = 8.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically,
         ) {
             row.forEachIndexed { colIndex, cell ->
-                Text(
-                    text = cell,
-                    fontSize = 14.sp,
-                    fontWeight = fontWeight,
-                    color = textColor,
-                    modifier = Modifier.weight(1f),
-                    textAlign = TextAlign.Center,
-                    maxLines = 1,
-                )
+                val isCurrentCell = isCurrent && readMode == ReadMode.COLUMN_BY_COLUMN && colIndex == currentColIndex
+                
+                Surface(
+                    modifier = Modifier
+                        .width(100.dp)
+                        .clickable { onClick(colIndex) }
+                        .padding(horizontal = 2.dp),
+                    color = if (isCurrentCell) Color(0xFF217346).copy(alpha = 0.5f) else Color.Transparent,
+                    shape = RoundedCornerShape(4.dp)
+                ) {
+                    Text(
+                        text = cell,
+                        fontSize = 14.sp,
+                        fontWeight = if (isCurrentCell) FontWeight.Bold else FontWeight.Normal,
+                        color = if (isCurrentCell) Color(0xFFFFFF00) else textColor,
+                        textAlign = TextAlign.Center,
+                        maxLines = 2,
+                        modifier = Modifier.padding(4.dp)
+                    )
+                }
             }
         }
     }
@@ -585,7 +613,7 @@ fun CurrentRowIndicator(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
-            text = "${currentIndex + 1}",
+            text = (currentIndex + 1).toString(),
             fontSize = 16.sp,
             fontWeight = FontWeight.Bold,
             color = Color.White,
@@ -609,6 +637,14 @@ fun CurrentRowIndicator(
 @Composable
 fun ExcelReaderScreenPreview() {
     MaterialTheme {
-        ExcelReaderScreen()
+        ExcelReaderScreen(
+            document = ExcelDocument(
+                filePath = "",
+                fileName = "预览表格.xlsx",
+                sheetName = "Sheet1",
+                headers = listOf("列1"),
+                rows = listOf(listOf("数据"))
+            )
+        )
     }
 }

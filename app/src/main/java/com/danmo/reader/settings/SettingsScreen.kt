@@ -380,14 +380,20 @@ private fun SettingsPreviewSection(
 
     fun speakPreview() {
         if (!isTtsReady) return
+        isPlaying = true // 立即设置状态，提升响应感
         tts?.setSpeechRate(speechRate)
         tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-            override fun onStart(utteranceId: String?)  { isPlaying = true }
+            override fun onStart(utteranceId: String?)  {
+                // UI 线程更新
+            }
             override fun onDone(utteranceId: String?)   { isPlaying = false }
             override fun onError(utteranceId: String?)  { isPlaying = false }
             override fun onStop(utteranceId: String?, interrupted: Boolean) { isPlaying = false }
         })
-        tts?.speak(PREVIEW_TEXT, TextToSpeech.QUEUE_FLUSH, null, "settings_preview")
+        val result = tts?.speak(PREVIEW_TEXT, TextToSpeech.QUEUE_FLUSH, null, "settings_preview")
+        if (result == TextToSpeech.ERROR) {
+            isPlaying = false
+        }
     }
 
     fun stopPreview() {
