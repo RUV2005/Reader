@@ -56,6 +56,27 @@ data class PdfDocument(
     val lastReadParagraph: Int = 0,
 )
 
+/**
+ * PDF 内容项抽象
+ */
+sealed class PdfContent {
+    data class Text(
+        val text: String,
+        val pageNumber: Int,
+        val pageIndex: Int,
+        val paraIndex: Int,
+        val globalIndex: Int
+    ) : PdfContent()
+
+    data class Image(
+        val imagePath: String,
+        val pageNumber: Int,
+        val pageIndex: Int,
+        val imageIndex: Int,
+        val globalIndex: Int
+    ) : PdfContent()
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PdfReaderScreen(
@@ -66,84 +87,70 @@ fun PdfReaderScreen(
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
-    var globalParagraphIndex by remember {
-        val initialValue = document.pages.asSequence().take(document.lastReadPage.coerceAtLeast(0).coerceAtMost(document.pages.size))
-            .sumOf { it.paragraphs.size } + document.lastReadParagraph.coerceAtLeast(0)
-        mutableIntStateOf(initialValue.coerceIn(0, (document.pages.flatMap { it.paragraphs }.size - 1).coerceAtLeast(0)))
-    }
-    var isSpeaking by remember { mutableStateOf(value = false) }
-
-    fun calculatePageAndParagraph(globalIndex: Int): Pair<Int, Int> {
-        var remaining = globalIndex.coerceAtLeast(0)
-        for ((pageIdx, page) in document.pages.withIndex()) {
-            if (remaining < page.paragraphs.size) {
-                return (pageIdx to remaining)
-            }
-            remaining -= page.paragraphs.size
-        }
-        return (document.pages.size - 1 to 0)
-    }
-
-    val allParagraphs = remember(document) {
-        document.pages.flatMap { it.paragraphs }
-    }
-
-    val currentPageIndex = remember(globalParagraphIndex, allParagraphs) {
-        calculatePageAndParagraph(globalParagraphIndex).first
-    }
-
-    data class FlatParagraph(val globalIndex: Int, val pageIndex: Int, val paraIndex: Int, val text: String, val pageNumber: Int)
-
-    val flatParagraphs = remember(document) {
-        val list = mutableListOf<FlatParagraph>()
+    // 1. 构造统一的内容列表（将图片和段落按顺序合并）
+    val unifiedContent = remember(document) {
+        val list = mutableListOf<PdfContent>()
         var globalIdx = 0
         document.pages.forEachIndexed { pageIdx, page ->
+            // 每页开头先放图片
+            page.images.forEachIndexed { imgIdx, path ->
+                list.add(PdfContent.Image(path, page.pageNumber, pageIdx, imgIdx, globalIdx++))
+            }
+            // 然后是段落
             page.paragraphs.forEachIndexed { paraIdx, text ->
-                list.add(FlatParagraph(globalIdx, pageIdx, paraIdx, text, page.pageNumber))
-                globalIdx++
+                list.add(PdfContent.Text(text, page.pageNumber, pageIdx, paraIdx, globalIdx++))
             }
         }
         list
+    }
+
+    var globalParagraphIndex by remember {
+        // 尝试恢复进度（粗略计算）
+        val initialValue = document.lastReadPage.coerceAtLeast(0) * 5 // 假设平均每页 5 段
+        mutableIntStateOf(initialValue.coerceIn(0, (unifiedContent.size - 1).coerceAtLeast(0)))
+    }
+    var isSpeaking by remember { mutableStateOf(value = false) }
+
+    val currentPageIndex = remember(globalParagraphIndex, unifiedContent) {
+        unifiedContent.getOrNull(globalParagraphIndex)?.let {
+            when (it) {
+                is PdfContent.Text -> it.pageIndex
+                is PdfContent.Image -> it.pageIndex
+            }
+        } ?: 0
     }
 
     val lazyListState = rememberLazyListState()
     var viewportHeight by remember { mutableIntStateOf(0) }
     val itemHeights = remember { mutableStateMapOf<Int, Int>() }
 
-    val ttsCallbacks = remember(document) {
+    val ttsCallbacks = remember(document, unifiedContent) {
         object : TtsCallbacks {
             override fun onUtteranceDone(): Boolean {
-                return globalParagraphIndex < allParagraphs.size - 1
+                return globalParagraphIndex < unifiedContent.size - 1
             }
 
             override fun getCurrentText(): String {
-                val text = allParagraphs.getOrNull(globalParagraphIndex) ?: ""
-                return text.ifBlank {
-                    "空段落"
+                return when (val item = unifiedContent.getOrNull(globalParagraphIndex)) {
+                    is PdfContent.Text -> item.text.ifBlank { "空段落" }
+                    is PdfContent.Image -> "第${item.pageNumber}页插图"
+                    null -> ""
                 }
             }
 
             override fun getCurrentUtteranceId(): String {
-                return "pdf_para_$globalParagraphIndex"
+                return "pdf_content_$globalParagraphIndex"
             }
 
             override fun moveToNext() {
-                if (globalParagraphIndex < allParagraphs.size - 1) {
+                if (globalParagraphIndex < unifiedContent.size - 1) {
                     globalParagraphIndex++
-                    while (globalParagraphIndex < allParagraphs.size - 1 &&
-                        allParagraphs.getOrNull(globalParagraphIndex)?.isBlank() == true) {
-                        globalParagraphIndex++
-                    }
                 }
             }
 
             override fun moveToPrevious() {
                 if (globalParagraphIndex > 0) {
                     globalParagraphIndex--
-                    while (globalParagraphIndex > 0 &&
-                        allParagraphs.getOrNull(globalParagraphIndex)?.isBlank() == true) {
-                        globalParagraphIndex--
-                    }
                 }
             }
         }
@@ -279,7 +286,7 @@ fun PdfReaderScreen(
                             modifier = Modifier.width(20.dp),
                         )
                         LinearProgressIndicator(
-                            progress = { (globalParagraphIndex + 1).toFloat() / allParagraphs.size.toFloat() },
+                            progress = { (globalParagraphIndex + 1).toFloat() / unifiedContent.size.coerceAtLeast(1).toFloat() },
                             modifier = Modifier
                                 .weight(1f)
                                 .height(3.dp)
@@ -344,56 +351,86 @@ fun PdfReaderScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 itemsIndexed(
-                    items = flatParagraphs,
-                    key = { _, item -> "pdf_para_${item.globalIndex}" }
+                    items = unifiedContent,
+                    key = { _, item ->
+                        when (item) {
+                            is PdfContent.Text -> "pdf_text_${item.globalIndex}"
+                            is PdfContent.Image -> "pdf_img_${item.globalIndex}"
+                        }
+                    }
                 ) { _, item ->
-                    val isCurrent = item.globalIndex == globalParagraphIndex
-                    val isEmpty = item.text.isBlank()
+                    val isCurrent = when (item) {
+                        is PdfContent.Text -> item.globalIndex == globalParagraphIndex
+                        is PdfContent.Image -> item.globalIndex == globalParagraphIndex
+                    }
 
-                    if (!isEmpty) {
-                        // 修复：在 itemsIndexed 的 content 中直接渲染 PageDivider，不用 item()
-                        if (item.paraIndex == 0) {
-                            if (item.pageIndex > 0) {
-                                PageDivider(pageNumber = item.pageNumber)
-                                Spacer(modifier = Modifier.height(16.dp))
+                    // 渲染页码分隔线
+                    val isFirstOnPage = when (item) {
+                        is PdfContent.Text -> item.paraIndex == 0 && (document.pages.getOrNull(item.pageIndex)?.images?.isEmpty() == true)
+                        is PdfContent.Image -> item.imageIndex == 0
+                    }
+                    
+                    if (isFirstOnPage) {
+                        val pageNumber = when (item) {
+                            is PdfContent.Text -> item.pageNumber
+                            is PdfContent.Image -> item.pageNumber
+                        }
+                        val pageIndex = when (item) {
+                            is PdfContent.Text -> item.pageIndex
+                            is PdfContent.Image -> item.pageIndex
+                        }
+                        if (pageIndex > 0) {
+                            PageDivider(pageNumber = pageNumber)
+                            Spacer(modifier = Modifier.height(16.dp))
+                        }
+                    }
+
+                    Box(
+                        modifier = Modifier.onGloballyPositioned { 
+                            val gIdx = when (item) {
+                                is PdfContent.Text -> item.globalIndex
+                                is PdfContent.Image -> item.globalIndex
                             }
-                            
-                            // 显示本页图片
-                            val page = document.pages.getOrNull(item.pageIndex)
-                            if (page != null && page.images.isNotEmpty()) {
-                                page.images.forEach { imagePath ->
-                                    AsyncImage(
-                                        model = imagePath,
-                                        contentDescription = "第 ${item.pageNumber} 页插图",
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .heightIn(max = 200.dp)
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .background(Color.Black),
+                            itemHeights[gIdx] = it.size.height 
+                        }
+                    ) {
+                        when (item) {
+                            is PdfContent.Text -> {
+                                if (item.text.isNotBlank()) {
+                                    PdfParagraphItem(
+                                        text = item.text,
+                                        isCurrent = isCurrent,
+                                        pageNumber = item.pageNumber,
+                                        paragraphNumber = item.paraIndex + 1,
+                                        onClick = {
+                                            globalParagraphIndex = item.globalIndex
+                                            ttsController.speakCurrent()
+                                        },
                                     )
-                                    Spacer(modifier = Modifier.height(12.dp))
+                                } else {
+                                    Spacer(modifier = Modifier.height(8.dp))
                                 }
                             }
-                        }
-
-                        Box(
-                            modifier = Modifier.onGloballyPositioned { coordinates ->
-                                itemHeights[item.globalIndex] = coordinates.size.height
+                            is PdfContent.Image -> {
+                                AsyncImage(
+                                    model = item.imagePath,
+                                    contentDescription = "第 ${item.pageNumber} 页插图",
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .heightIn(max = 200.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(if (isCurrent) Color(0xFFFFFF00).copy(alpha = 0.2f) else Color.Black)
+                                        .clickable {
+                                            globalParagraphIndex = item.globalIndex
+                                            ttsController.speakCurrent()
+                                        }
+                                        .then(
+                                            if (isCurrent) Modifier.border(2.dp, Color(0xFFFFFF00), RoundedCornerShape(8.dp))
+                                            else Modifier
+                                        ),
+                                )
                             }
-                        ) {
-                            PdfParagraphItem(
-                                text = item.text,
-                                isCurrent = isCurrent,
-                                pageNumber = item.pageNumber,
-                                paragraphNumber = item.paraIndex + 1,
-                                onClick = {
-                                    globalParagraphIndex = item.globalIndex
-                                    ttsController.speakCurrent()
-                                },
-                            )
                         }
-                    } else {
-                        Spacer(modifier = Modifier.height(16.dp))
                     }
                 }
             }
@@ -402,7 +439,7 @@ fun PdfReaderScreen(
                 currentPage = currentPageIndex + 1,
                 totalPages = document.totalPages,
                 currentParagraph = globalParagraphIndex + 1,
-                totalParagraphs = allParagraphs.size,
+                totalParagraphs = unifiedContent.size,
                 modifier = Modifier.align(Alignment.CenterEnd),
             )
         }

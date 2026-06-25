@@ -107,11 +107,17 @@ fun WordReaderScreen(
                 // 根据当前条目类型返回不同的朗读文本
                 return when (val content = document.contents.getOrNull(currentParagraphIndex)) {
                     is WordContent.Text -> content.text
-                    is WordContent.Image -> content.description ?: "图片"
+                    is WordContent.Image -> content.description ?: "插图"
                     is WordContent.Table -> {
                         val rowCount = content.rows.size
                         val colCount = content.rows.firstOrNull()?.size ?: 0
-                        "表格，共${rowCount}行${colCount}列。可左右滑动查看详细内容。"
+                        val tableSummary = "表格，共${rowCount}行${colCount}列。"
+                        val firstRow = content.rows.firstOrNull()?.joinToString(separator = "，") ?: ""
+                        if (firstRow.isNotEmpty()) {
+                            "$tableSummary。第一行内容为：$firstRow"
+                        } else {
+                            tableSummary
+                        }
                     }
                     null -> ""
                 }

@@ -90,8 +90,20 @@ fun PptReaderScreen(
                     slide.content.forEach { item ->
                         append("$item。")
                     }
+                    if (slide.images.isNotEmpty()) {
+                        append("包含${slide.images.size}张插图。")
+                    }
                     if (slide.tables.isNotEmpty()) {
                         append("包含${slide.tables.size}个表格。")
+                        slide.tables.forEachIndexed { index, table ->
+                            val rowCount = table.size
+                            val colCount = table.firstOrNull()?.size ?: 0
+                            append("第${index + 1}个表格共${rowCount}行${colCount}列。")
+                            val firstRow = table.firstOrNull()?.joinToString(separator = "，") ?: ""
+                            if (firstRow.isNotEmpty()) {
+                                append("首行内容为：$firstRow。")
+                            }
+                        }
                     }
                     if (showNotes && slide.notes.isNotEmpty()) {
                         append("备注：${slide.notes}。")
