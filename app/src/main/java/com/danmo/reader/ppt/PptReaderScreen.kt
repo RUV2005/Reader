@@ -24,6 +24,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -59,6 +60,8 @@ data class PptDocument(
     val lastReadSlide: Int = 0,
 )
 
+// ==================== PPT阅读页面 ====================
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PptReaderScreen(
@@ -77,7 +80,15 @@ fun PptReaderScreen(
     var viewportHeight by remember { mutableIntStateOf(0) }
     val itemHeights = remember { mutableStateMapOf<Int, Int>() }
 
-    val ttsCallbacks = remember(document, showNotes) {
+    // 资源获取
+    val slideDesc = stringResource(id = R.string.reader_page_format)
+    val imageCountDesc = stringResource(id = R.string.desc_image_count)
+    val tableCountDesc = stringResource(id = R.string.desc_table_count)
+    val tableSummaryDesc = stringResource(id = R.string.desc_table_summary)
+    val tableFirstRowDesc = stringResource(id = R.string.desc_table_first_row)
+    val notesDesc = stringResource(id = R.string.desc_notes)
+
+    val ttsCallbacks = remember(document, showNotes, currentSlideIndex) {
         object : TtsCallbacks {
             override fun onUtteranceDone(): Boolean {
                 return (currentSlideIndex < (document.slides.size - 1))
@@ -86,27 +97,29 @@ fun PptReaderScreen(
             override fun getCurrentText(): String {
                 val slide = document.slides.getOrNull(currentSlideIndex) ?: return ""
                 return buildString {
-                    append("第${slide.slideNumber}页，${slide.title}。")
+                    append(String.format(java.util.Locale.getDefault(), slideDesc, slide.slideNumber, document.totalSlides))
+                    append("，${slide.title}。")
                     slide.content.forEach { item ->
                         append("$item。")
                     }
                     if (slide.images.isNotEmpty()) {
-                        append("包含${slide.images.size}张插图。")
+                        append(String.format(java.util.Locale.getDefault(), imageCountDesc, slide.images.size))
                     }
                     if (slide.tables.isNotEmpty()) {
-                        append("包含${slide.tables.size}个表格。")
+                        append(String.format(java.util.Locale.getDefault(), tableCountDesc, slide.tables.size))
                         slide.tables.forEachIndexed { index, table ->
                             val rowCount = table.size
                             val colCount = table.firstOrNull()?.size ?: 0
-                            append("第${index + 1}个表格共${rowCount}行${colCount}列。")
+                            append("Table ${index + 1} ")
+                            append(String.format(java.util.Locale.getDefault(), tableSummaryDesc, rowCount, colCount))
                             val firstRow = table.firstOrNull()?.joinToString(separator = "，") ?: ""
                             if (firstRow.isNotEmpty()) {
-                                append("首行内容为：$firstRow。")
+                                append(String.format(java.util.Locale.getDefault(), tableFirstRowDesc, firstRow))
                             }
                         }
                     }
                     if (showNotes && slide.notes.isNotEmpty()) {
-                        append("备注：${slide.notes}。")
+                        append(String.format(java.util.Locale.getDefault(), notesDesc, slide.notes))
                     }
                 }
             }
@@ -146,7 +159,7 @@ fun PptReaderScreen(
     }
 
     LaunchedEffect(currentSlideIndex) {
-        kotlinx.coroutines.delay(50)
+        kotlinx.coroutines.delay(timeMillis = 50)
         val itemHeight = itemHeights[currentSlideIndex] ?: 0
         val viewportCenter = viewportHeight / 2
         val scrollOffset = if (itemHeight > 0) {
@@ -171,7 +184,7 @@ fun PptReaderScreen(
                         maxLines = 1,
                     )
                     Text(
-                        text = "共 ${document.totalSlides} 页",
+                        text = stringResource(id = R.string.reader_page_format, currentSlideIndex + 1, document.totalSlides),
                         fontSize = 13.sp,
                         color = Color.White.copy(alpha = 0.8f),
                     )
@@ -182,14 +195,11 @@ fun PptReaderScreen(
                     onClick = {
                         ttsController.stop()
                         onBackClick()
-                    },
-                    modifier = Modifier.semantics {
-                        contentDescription = "返回，当前朗读将暂停"
-                    },
+                    }
                 ) {
                     Icon(
                         painter = painterResource(id = R.drawable.ic_back),
-                        contentDescription = null,
+                        contentDescription = stringResource(id = R.string.dialog_close),
                         modifier = Modifier.size(24.dp),
                     )
                 }
@@ -239,9 +249,9 @@ fun PptReaderScreen(
             speechRate = ttsController.speechRate.collectAsState().value,
             accentColor = Color(0xFFD24726),
             progressColor = Color(0xFFD24726),
-            previousLabel = "上页",
-            nextLabel = "下页",
-            positionText = "${currentSlideIndex + 1}/${document.slides.size}",
+            previousLabel = stringResource(id = R.string.reader_prev_page),
+            nextLabel = stringResource(id = R.string.reader_next_page),
+            positionText = stringResource(id = R.string.reader_page_format, currentSlideIndex + 1, document.slides.size),
             onPrevious = { ttsController.speakPrevious() },
             onPlayPause = { ttsController.togglePlayPause() },
             onNext = { ttsController.speakNext() },
@@ -269,24 +279,13 @@ fun PptReaderScreen(
                             change.consume()
                             val (x, y) = dragAmount
                             if (abs(x) > abs(y)) {
-                                when {
-                                    x > 0 -> swipeDirection = 0
-                                    x < 0 -> swipeDirection = 1
-                                }
-                            } else {
-                                when {
-                                    y > 0 -> swipeDirection = 2
-                                    y < 0 -> swipeDirection = 3
-                                }
+                                if (x > 0) swipeDirection = 0
+                                if (x < 0) swipeDirection = 1
                             }
                         },
                         onDragEnd = {
-                            when (swipeDirection) {
-                                0 -> ttsController.speakPrevious()
-                                1 -> ttsController.speakNext()
-                                2 -> { }
-                                3 -> { }
-                            }
+                            if (swipeDirection == 0) ttsController.speakPrevious()
+                            if (swipeDirection == 1) ttsController.speakNext()
                             swipeDirection = -1
                         },
                     )
@@ -383,10 +382,7 @@ fun SlideCard(
             .fillMaxWidth()
             .clickable(onClick = onClick)
             .semantics {
-                contentDescription = buildString {
-                    append("第${slide.slideNumber}页，${slide.title}。")
-                    slide.content.forEach { append("$it。") }
-                }
+                contentDescription = "Slide ${slide.slideNumber}"
             },
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = backgroundColor),
@@ -439,7 +435,7 @@ fun SlideCard(
                     itemsIndexed(slide.images) { imgIndex, imagePath ->
                         AsyncImage(
                             model = imagePath,
-                            contentDescription = "幻灯片插图 ${imgIndex + 1}",
+                            contentDescription = stringResource(id = R.string.desc_image_general),
                             modifier = Modifier
                                 .height(120.dp)
                                 .aspectRatio(16f / 9f)
@@ -573,7 +569,7 @@ fun CurrentSlideIndicator(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
-            text = "${currentIndex + 1}",
+            text = (currentIndex + 1).toString(),
             fontSize = 16.sp,
             fontWeight = FontWeight.Bold,
             color = Color.White,
@@ -584,7 +580,7 @@ fun CurrentSlideIndicator(
             color = Color.White.copy(alpha = 0.7f),
         )
         Text(
-            text = "$totalCount",
+            text = totalCount.toString(),
             fontSize = 14.sp,
             color = Color.White.copy(alpha = 0.7f),
         )

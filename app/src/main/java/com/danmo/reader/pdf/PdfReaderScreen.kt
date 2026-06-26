@@ -23,6 +23,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -87,16 +88,14 @@ fun PdfReaderScreen(
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
-    // 1. 构造统一的内容列表（将图片和段落按顺序合并）
+    // 1. 构造统一的内容列表
     val unifiedContent = remember(document) {
         val list = mutableListOf<PdfContent>()
         var globalIdx = 0
         document.pages.forEachIndexed { pageIdx, page ->
-            // 每页开头先放图片
             page.images.forEachIndexed { imgIdx, path ->
                 list.add(PdfContent.Image(path, page.pageNumber, pageIdx, imgIdx, globalIdx++))
             }
-            // 然后是段落
             page.paragraphs.forEachIndexed { paraIdx, text ->
                 list.add(PdfContent.Text(text, page.pageNumber, pageIdx, paraIdx, globalIdx++))
             }
@@ -105,8 +104,7 @@ fun PdfReaderScreen(
     }
 
     var globalParagraphIndex by remember {
-        // 尝试恢复进度（粗略计算）
-        val initialValue = document.lastReadPage.coerceAtLeast(0) * 5 // 假设平均每页 5 段
+        val initialValue = document.lastReadPage.coerceAtLeast(0) * 5
         mutableIntStateOf(initialValue.coerceIn(0, (unifiedContent.size - 1).coerceAtLeast(0)))
     }
     var isSpeaking by remember { mutableStateOf(value = false) }
@@ -124,7 +122,11 @@ fun PdfReaderScreen(
     var viewportHeight by remember { mutableIntStateOf(0) }
     val itemHeights = remember { mutableStateMapOf<Int, Int>() }
 
-    val ttsCallbacks = remember(document, unifiedContent) {
+    // 资源获取
+    val imageDescFormat = stringResource(id = R.string.desc_image_with_page)
+    val pageFormat = stringResource(id = R.string.reader_page_format)
+
+    val ttsCallbacks = remember(document, unifiedContent, globalParagraphIndex) {
         object : TtsCallbacks {
             override fun onUtteranceDone(): Boolean {
                 return globalParagraphIndex < unifiedContent.size - 1
@@ -132,8 +134,8 @@ fun PdfReaderScreen(
 
             override fun getCurrentText(): String {
                 return when (val item = unifiedContent.getOrNull(globalParagraphIndex)) {
-                    is PdfContent.Text -> item.text.ifBlank { "空段落" }
-                    is PdfContent.Image -> "第${item.pageNumber}页插图"
+                    is PdfContent.Text -> item.text.ifBlank { "Empty paragraph" }
+                    is PdfContent.Image -> String.format(java.util.Locale.getDefault(), imageDescFormat, item.pageNumber)
                     null -> ""
                 }
             }
@@ -190,7 +192,7 @@ fun PdfReaderScreen(
                         maxLines = 1,
                     )
                     Text(
-                        text = "第 ${currentPageIndex + 1} / ${document.totalPages} 页",
+                        text = String.format(java.util.Locale.getDefault(), pageFormat, currentPageIndex + 1, document.totalPages),
                         fontSize = 13.sp,
                         color = Color.White.copy(alpha = 0.8f),
                     )
@@ -201,28 +203,22 @@ fun PdfReaderScreen(
                     onClick = {
                         ttsController.stop()
                         onBackClick()
-                    },
-                    modifier = Modifier.semantics {
-                        contentDescription = "返回，当前朗读将暂停"
-                    },
+                    }
                 ) {
                     Icon(
                         painter = painterResource(id = R.drawable.ic_back),
-                        contentDescription = null,
+                        contentDescription = stringResource(id = R.string.dialog_close),
                         modifier = Modifier.size(24.dp),
                     )
                 }
             },
             actions = {
                 IconButton(
-                    onClick = onSettingsClick,
-                    modifier = Modifier.semantics {
-                        contentDescription = "阅读设置"
-                    },
+                    onClick = onSettingsClick
                 ) {
                     Icon(
                         painter = painterResource(id = R.drawable.ic_settings),
-                        contentDescription = null,
+                        contentDescription = stringResource(id = R.string.tab_settings),
                         modifier = Modifier.size(24.dp),
                     )
                 }
@@ -245,9 +241,9 @@ fun PdfReaderScreen(
             speechRate = ttsController.speechRate.collectAsState().value,
             accentColor = pdfAccent,
             progressColor = pdfAccent,
-            previousLabel = "上段",
-            nextLabel = "下段",
-            positionText = "${currentPageIndex + 1}/${document.totalPages}",
+            previousLabel = stringResource(id = R.string.reader_prev_para),
+            nextLabel = stringResource(id = R.string.reader_next_para),
+            positionText = String.format(java.util.Locale.getDefault(), pageFormat, currentPageIndex + 1, document.totalPages),
             onPrevious = { ttsController.speakPrevious() },
             onPlayPause = { ttsController.togglePlayPause() },
             onNext = { ttsController.speakNext() },
@@ -259,7 +255,7 @@ fun PdfReaderScreen(
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         Text(
-                            text = "页",
+                            text = "P",
                             fontSize = 10.sp,
                             color = Color(0xFF888888),
                             modifier = Modifier.width(20.dp),
@@ -280,7 +276,7 @@ fun PdfReaderScreen(
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         Text(
-                            text = "段",
+                            text = "T",
                             fontSize = 10.sp,
                             color = Color(0xFF888888),
                             modifier = Modifier.width(20.dp),
@@ -320,24 +316,13 @@ fun PdfReaderScreen(
                             change.consume()
                             val (x, y) = dragAmount
                             if (abs(x) > abs(y)) {
-                                when {
-                                    x > 0 -> swipeDirection = 0
-                                    x < 0 -> swipeDirection = 1
-                                }
-                            } else {
-                                when {
-                                    y > 0 -> swipeDirection = 2
-                                    y < 0 -> swipeDirection = 3
-                                }
+                                if (x > 0) swipeDirection = 0
+                                if (x < 0) swipeDirection = 1
                             }
                         },
                         onDragEnd = {
-                            when (swipeDirection) {
-                                0 -> ttsController.speakPrevious()
-                                1 -> ttsController.speakNext()
-                                2 -> { }
-                                3 -> { }
-                            }
+                            if (swipeDirection == 0) ttsController.speakPrevious()
+                            if (swipeDirection == 1) ttsController.speakNext()
                             swipeDirection = -1
                         },
                     )
@@ -391,7 +376,7 @@ fun PdfReaderScreen(
                                 is PdfContent.Text -> item.globalIndex
                                 is PdfContent.Image -> item.globalIndex
                             }
-                            itemHeights[gIdx] = it.size.height 
+                            itemHeights[gIdx] = it.size.height
                         }
                     ) {
                         when (item) {
@@ -414,7 +399,7 @@ fun PdfReaderScreen(
                             is PdfContent.Image -> {
                                 AsyncImage(
                                     model = item.imagePath,
-                                    contentDescription = "第 ${item.pageNumber} 页插图",
+                                    contentDescription = String.format(java.util.Locale.getDefault(), imageDescFormat, item.pageNumber),
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .heightIn(max = 200.dp)
@@ -487,7 +472,7 @@ fun PageDivider(pageNumber: Int) {
                 .background(Color(0xFF444444)),
         )
         Text(
-            text = "— 第 $pageNumber 页 —",
+            text = "— Page $pageNumber —",
             fontSize = 12.sp,
             color = Color(0xFF666666),
             modifier = Modifier.padding(horizontal = 12.dp),
@@ -511,12 +496,10 @@ fun PdfParagraphItem(
     paragraphNumber: Int,
     onClick: () -> Unit,
 ) {
-    val isHeading = text.matches(Regex("""^第[一二三四五六七八九十]+条.*""")) ||
-            text.startsWith("合同编号") ||
-            text.startsWith("鉴于") ||
-            text.startsWith("本合同")
-    
-    val isTable = text.startsWith("表格数据：")
+    val isHeading = text.matches(Regex("""^Item [0-9]+.*""")) ||
+            text.startsWith("No.")
+
+    val isTable = text.startsWith("Table Data:")
 
     val backgroundColor = when {
         isCurrent -> Color(0xFFB91C1C).copy(alpha = 0.2f)
@@ -531,16 +514,7 @@ fun PdfParagraphItem(
         else -> Color.White
     }
 
-    val fontSize = when {
-        isHeading -> 18.sp
-        else -> 16.sp
-    }
-
-    val fontWeight = when {
-        isHeading -> FontWeight.Bold
-        isCurrent -> FontWeight.Bold
-        else -> FontWeight.Normal
-    }
+    val fontSize = if (isHeading) 18.sp else 16.sp
 
     Box(
         modifier = Modifier
@@ -551,13 +525,13 @@ fun PdfParagraphItem(
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 10.dp)
             .semantics {
-                contentDescription = "第${pageNumber}页第${paragraphNumber}段，$text"
+                contentDescription = "P$pageNumber T$paragraphNumber, $text"
             },
     ) {
         Text(
-            text = if (isTable) text.substringAfter("表格数据：") else text,
+            text = if (isTable) text.substringAfter("Table Data:") else text,
             fontSize = fontSize,
-            fontWeight = fontWeight,
+            fontWeight = if (isHeading || isCurrent) FontWeight.Bold else FontWeight.Normal,
             color = textColor,
             lineHeight = 28.sp,
             textAlign = TextAlign.Start,

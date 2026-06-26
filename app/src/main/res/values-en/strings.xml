@@ -1,0 +1,125 @@
+<resources>
+    <string name="app_name">Smart Reader</string>
+    <string name="tab_home">Home</string>
+    <string name="tab_files">Files</string>
+    <string name="tab_settings">Settings</string>
+
+    <!-- Home -->
+    <string name="greeting_afternoon">Good Afternoon</string>
+    <string name="home_subtitle">Efficient reading every day</string>
+    <string name="action_open_word">Open Word</string>
+    <string name="action_open_excel">Open Excel</string>
+    <string name="action_open_ppt">Open PPT</string>
+    <string name="action_open_pdf">Open PDF</string>
+    <string name="desc_open_word">Open to view documents</string>
+    <string name="desc_open_excel">Open to view spreadsheets</string>
+    <string name="desc_open_ppt">Open to view presentations</string>
+    <string name="desc_open_pdf">Open to view PDF</string>
+    <string name="home_recent_files">Recent Files</string>
+    <string name="home_view_all">View All</string>
+    <string name="home_no_recent_files">No recent files</string>
+    <string name="home_recent_files_tip">Opened documents will appear here</string>
+    <string name="action_scan">Scan OCR</string>
+
+    <!-- Files -->
+    <string name="files_title">File Manager</string>
+    <string name="files_search_placeholder">Search file name...</string>
+    <string name="files_filter_all">All</string>
+    <string name="files_empty_title">No file records</string>
+    <string name="files_empty_tip">Documents opened from home will appear here</string>
+    <string name="action_open_new_file">Open New File</string>
+    <string name="last_opened">Last opened: %1$s</string>
+
+    <!-- Settings -->
+    <string name="group_reading">Reading Settings</string>
+    <string name="group_accessibility">Accessibility</string>
+    <string name="group_general">General</string>
+    <string name="group_about">About</string>
+
+    <string name="setting_tts">Text-to-Speech</string>
+    <string name="setting_tts_desc_on">On, automatically read documents</string>
+    <string name="setting_tts_desc_off">Off</string>
+    <string name="setting_speech_rate">Default Speech Rate</string>
+    <string name="setting_speech_rate_subtitle">Current: %1$.1fx</string>
+    <string name="setting_font_size">Font Size</string>
+    <string name="setting_font_size_subtitle">Current: %1$dsp</string>
+    <string name="setting_auto_scroll">Auto Scroll</string>
+    <string name="setting_auto_scroll_desc_on">Automatically scroll to current position</string>
+    <string name="setting_auto_scroll_desc_off">Auto scroll is off</string>
+    <string name="setting_high_contrast">High Contrast Mode</string>
+    <string name="setting_high_contrast_desc">Enhance text and background contrast</string>
+    <string name="setting_gesture">Gesture Control</string>
+    <string name="setting_gesture_subtitle">View operation guide</string>
+    <string name="setting_talkback">TalkBack Opt</string>
+    <string name="setting_talkback_subtitle">Accessibility experience opt</string>
+    <string name="setting_storage">Storage Manage</string>
+    <string name="setting_storage_subtitle">Current cache: %1$s</string>
+    <string name="setting_language">Language</string>
+    <string name="setting_theme">Theme</string>
+
+    <string name="about_title">About App</string>
+    <string name="about_version">Version 1.0.0 (Stable)</string>
+    <string name="feedback_title">Feedback</string>
+    <string name="feedback_subtitle">Tell us your suggestions</string>
+    <string name="privacy_title">Privacy Policy</string>
+    <string name="privacy_subtitle">Data security instructions</string>
+
+    <!-- Dialogs -->
+    <string name="dialog_confirm">Confirm</string>
+    <string name="dialog_cancel">Cancel</string>
+    <string name="dialog_close">Close</string>
+    <string name="dialog_know">Got it</string>
+    <string name="error_open_failed">Open Failed</string>
+    <string name="error_retry">Retry</string>
+    <string name="loading_parsing">Parsing...</string>
+    <string name="perm_camera_denied">Camera permission is required for scanning</string>
+    <string name="perm_file_invalid">File permission invalid, please reselect</string>
+
+    <!-- Reader Controls -->
+    <string name="reader_prev_para">Prev Para</string>
+    <string name="reader_next_para">Next Para</string>
+    <string name="reader_prev_page">Prev Page</string>
+    <string name="reader_next_page">Next Page</string>
+    <string name="reader_prev_row">Prev Row</string>
+    <string name="reader_next_row">Next Row</string>
+    <string name="reader_play">Start Reading</string>
+    <string name="reader_pause">Pause Reading</string>
+    <string name="reader_pos_format">Item %1$d / %2$d</string>
+    <string name="reader_page_format">Page %1$d / %2$d</string>
+    <string name="reader_row_format">Row %1$d / %2$d</string>
+
+    <!-- Document Elements -->
+    <string name="desc_table_summary">Table, total %1$d rows and %2$d columns.</string>
+    <string name="desc_table_first_row">First row content: %1$s</string>
+    <string name="desc_image_with_page">Page %1$d illustration</string>
+    <string name="desc_image_general">Document illustration</string>
+    <string name="desc_image_count">Contains %1$d illustrations.</string>
+    <string name="desc_table_count">Contains %1$d tables.</string>
+    <string name="desc_notes">Notes: %1$s</string>
+
+    <!-- Excel Specific -->
+    <string name="excel_mode_row">Row</string>
+    <string name="excel_mode_column">Col</string>
+    <string name="excel_mode_row_desc">Read Row by Row</string>
+    <string name="excel_mode_column_desc">Read Col by Col</string>
+    <string name="excel_mode_switch_tip">Current: %1$s, click to switch</string>
+    <string name="excel_header_info">Read headers</string>
+    <string name="excel_sheet_label">Sheet: %1$s</string>
+    <string name="excel_image_section">Sheet Images (%1$d)</string>
+    <string name="excel_col_row_format">%1$s column, row %2$d, %3$s</string>
+    <string name="excel_total_cols">Table has %1$d columns.</string>
+    <string name="excel_col_name">Column %1$d is %2$s.</string>
+    <string name="excel_total_rows">Total %1$d rows of data.</string>
+
+    <!-- OCR -->
+    <string name="ocr_title">Scan OCR</string>
+    <string name="ocr_result_title">Result</string>
+    <string name="ocr_gallery">Gallery</string>
+    <string name="ocr_no_text">No text recognized in the image</string>
+
+    <string name="lang_zh">简体中文</string>
+    <string name="lang_en">English</string>
+    <string name="theme_system">Follow System</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
+</resources>

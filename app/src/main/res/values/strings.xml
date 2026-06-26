@@ -1,3 +1,126 @@
 <resources>
-    <string name="app_name">Reader</string>
+    <string name="app_name">智能阅读器</string>
+    <string name="tab_home">首页</string>
+    <string name="tab_files">文件</string>
+    <string name="tab_settings">设置</string>
+
+    <!-- 首页 -->
+    <string name="greeting_afternoon">下午好</string>
+    <string name="home_subtitle">高效阅读每一天</string>
+    <string name="action_open_word">打开Word</string>
+    <string name="action_open_excel">打开Excel</string>
+    <string name="action_open_ppt">打开PPT</string>
+    <string name="action_open_pdf">打开PDF</string>
+    <string name="desc_open_word">打开以查看文档</string>
+    <string name="desc_open_excel">打开以查看表格</string>
+    <string name="desc_open_ppt">打开以查看演示文稿</string>
+    <string name="desc_open_pdf">打开以查看PDF</string>
+    <string name="home_recent_files">最近打开</string>
+    <string name="home_view_all">查看全部</string>
+    <string name="home_no_recent_files">暂无最近打开的文件</string>
+    <string name="home_recent_files_tip">打开文档后将显示在这里</string>
+    <string name="action_scan">扫描识字</string>
+
+    <!-- 文件管理 -->
+    <string name="files_title">文件管理</string>
+    <string name="files_search_placeholder">搜索文件名...</string>
+    <string name="files_filter_all">全部</string>
+    <string name="files_empty_title">暂无文件记录</string>
+    <string name="files_empty_tip">从首页打开文档后将显示在此处</string>
+    <string name="action_open_new_file">打开新文件</string>
+    <string name="last_opened">上次打开：%1$s</string>
+
+    <!-- 设置 -->
+    <string name="group_reading">阅读设置</string>
+    <string name="group_accessibility">无障碍</string>
+    <string name="group_general">通用</string>
+    <string name="group_about">关于</string>
+
+    <string name="setting_tts">语音朗读</string>
+    <string name="setting_tts_desc_on">已开启，自动朗读文档内容</string>
+    <string name="setting_tts_desc_off">已关闭</string>
+    <string name="setting_speech_rate">默认语速</string>
+    <string name="setting_speech_rate_subtitle">当前: %1$.1fx</string>
+    <string name="setting_font_size">字体大小</string>
+    <string name="setting_font_size_subtitle">当前: %1$dsp</string>
+    <string name="setting_auto_scroll">自动滚动</string>
+    <string name="setting_auto_scroll_desc_on">朗读时自动滚动到当前位置</string>
+    <string name="setting_auto_scroll_desc_off">自动滚动已关闭</string>
+    <string name="setting_high_contrast">高对比度模式</string>
+    <string name="setting_high_contrast_desc">增强文字与背景对比度</string>
+    <string name="setting_gesture">手势控制</string>
+    <string name="setting_gesture_subtitle">查看操作指南</string>
+    <string name="setting_talkback">TalkBack 优化</string>
+    <string name="setting_talkback_subtitle">读屏体验优化</string>
+    <string name="setting_storage">存储管理</string>
+    <string name="setting_storage_subtitle">当前缓存: %1$s</string>
+    <string name="setting_language">语言</string>
+    <string name="setting_theme">主题</string>
+
+    <string name="about_title">关于应用</string>
+    <string name="about_version">版本 1.0.0 (Stable)</string>
+    <string name="feedback_title">意见反馈</string>
+    <string name="feedback_subtitle">将您的建议告诉我们</string>
+    <string name="privacy_title">隐私政策</string>
+    <string name="privacy_subtitle">数据安全说明</string>
+
+    <!-- 对话框 & 提示 -->
+    <string name="dialog_confirm">确定</string>
+    <string name="dialog_cancel">取消</string>
+    <string name="dialog_close">关闭</string>
+    <string name="dialog_know">知道了</string>
+    <string name="error_open_failed">打开失败</string>
+    <string name="error_retry">重试</string>
+    <string name="loading_parsing">解析中...</string>
+    <string name="perm_camera_denied">需要相机权限才能使用扫描功能</string>
+    <string name="perm_file_invalid">文件访问权限已失效，请重新选择文件</string>
+
+    <!-- 阅读器控制 -->
+    <string name="reader_prev_para">上段</string>
+    <string name="reader_next_para">下段</string>
+    <string name="reader_prev_page">上页</string>
+    <string name="reader_next_page">下页</string>
+    <string name="reader_prev_row">上行</string>
+    <string name="reader_next_row">下行</string>
+    <string name="reader_play">开始朗读</string>
+    <string name="reader_pause">暂停朗读</string>
+    <string name="reader_pos_format">第 %1$d / %2$d 项</string>
+    <string name="reader_page_format">第 %1$d / %2$d 页</string>
+    <string name="reader_row_format">第 %1$d / %2$d 行</string>
+
+    <!-- 文档元素描述 -->
+    <string name="desc_table_summary">表格，共%1$d行%2$d列。</string>
+    <string name="desc_table_first_row">第一行内容为：%1$s</string>
+    <string name="desc_image_with_page">第 %1$d 页插图</string>
+    <string name="desc_image_general">文档插图</string>
+    <string name="desc_image_count">包含%1$d张插图。</string>
+    <string name="desc_table_count">包含%1$d个表格。</string>
+    <string name="desc_notes">备注：%1$s</string>
+
+    <!-- Excel 专用 -->
+    <string name="excel_mode_row">按行</string>
+    <string name="excel_mode_column">按列</string>
+    <string name="excel_mode_row_desc">按行朗读</string>
+    <string name="excel_mode_column_desc">按列朗读</string>
+    <string name="excel_mode_switch_tip">当前%1$s，点击切换</string>
+    <string name="excel_header_info">朗读表头信息</string>
+    <string name="excel_sheet_label">工作表：%1$s</string>
+    <string name="excel_image_section">表格图片 (%1$d)</string>
+    <string name="excel_col_row_format">%1$s列，第%2$d行，%3$s</string>
+    <string name="excel_total_cols">表格共有%1$d列。</string>
+    <string name="excel_col_name">第%1$d列是%2$s。</string>
+    <string name="excel_total_rows">共有%1$d行数据。</string>
+
+    <!-- OCR -->
+    <string name="ocr_title">扫描识字</string>
+    <string name="ocr_result_title">识别结果</string>
+    <string name="ocr_gallery">相册</string>
+    <string name="ocr_no_text">未能在图片中识别到文字</string>
+
+    <!-- 翻译占位 (示例) -->
+    <string name="lang_zh">简体中文</string>
+    <string name="lang_en">English</string>
+    <string name="theme_system">跟随系统</string>
+    <string name="theme_light">浅色</string>
+    <string name="theme_dark">深色</string>
 </resources>

@@ -5,12 +5,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -23,6 +23,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -79,7 +80,18 @@ fun ExcelReaderScreen(
     var viewportHeight by remember { mutableIntStateOf(0) }
     val itemHeights = remember { mutableStateMapOf<Int, Int>() }
 
-    val ttsCallbacks = remember(document, readMode) {
+    // 资源获取
+    val modeRowStr = stringResource(id = R.string.excel_mode_row_desc)
+    val modeColStr = stringResource(id = R.string.excel_mode_column_desc)
+    val rowFormat = stringResource(id = R.string.reader_row_format)
+    val colRowFormat = stringResource(id = R.string.excel_col_row_format)
+    val totalColsStr = stringResource(id = R.string.excel_total_cols)
+    val colNameStr = stringResource(id = R.string.excel_col_name)
+    val totalRowsStr = stringResource(id = R.string.excel_total_rows)
+    val excelHeaderInfoDesc = stringResource(id = R.string.excel_header_info)
+    val settingsDesc = stringResource(id = R.string.tab_settings)
+
+    val ttsCallbacks = remember(document, readMode, currentRowIndex, currentColIndex) {
         object : TtsCallbacks {
             override fun onUtteranceDone(): Boolean {
                 return when (readMode) {
@@ -97,7 +109,7 @@ fun ExcelReaderScreen(
                     ReadMode.ROW_BY_ROW -> {
                         val row = document.rows.getOrNull(currentRowIndex) ?: return ""
                         buildString {
-                            append("第${currentRowIndex + 1}行。")
+                            append(String.format(java.util.Locale.getDefault(), rowFormat, currentRowIndex + 1, document.rows.size))
                             document.headers.forEachIndexed { colIndex, header ->
                                 if (colIndex < row.size) {
                                     append("$header，${row[colIndex]}。")
@@ -109,9 +121,7 @@ fun ExcelReaderScreen(
                         val row = document.rows.getOrNull(currentRowIndex) ?: return ""
                         val header = document.headers.getOrNull(currentColIndex) ?: return ""
                         val cellValue = row.getOrNull(currentColIndex) ?: ""
-                        buildString {
-                            append("${header}列，第${currentRowIndex + 1}行，$cellValue。")
-                        }
+                        String.format(java.util.Locale.getDefault(), colRowFormat, header, currentRowIndex + 1, cellValue)
                     }
                 }
             }
@@ -186,11 +196,11 @@ fun ExcelReaderScreen(
 
     fun speakHeaders() {
         val text = buildString {
-            append("表格共有${document.headers.size}列。")
+            append(String.format(java.util.Locale.getDefault(), totalColsStr, document.headers.size))
             document.headers.forEachIndexed { index, header ->
-                append("第${index + 1}列是$header。")
+                append(String.format(java.util.Locale.getDefault(), colNameStr, index + 1, header))
             }
-            append("共有${document.rows.size}行数据。")
+            append(String.format(java.util.Locale.getDefault(), totalRowsStr, document.rows.size))
         }
         ttsController.stop()
         ttsController.speak(text)
@@ -207,7 +217,7 @@ fun ExcelReaderScreen(
                         maxLines = 1,
                     )
                     Text(
-                        text = "工作表：${document.sheetName}",
+                        text = stringResource(id = R.string.excel_sheet_label, document.sheetName),
                         fontSize = 13.sp,
                         color = Color.White.copy(alpha = 0.8f),
                     )
@@ -218,14 +228,11 @@ fun ExcelReaderScreen(
                     onClick = {
                         ttsController.stop()
                         onBackClick()
-                    },
-                    modifier = Modifier.semantics {
-                        contentDescription = "返回，当前朗读将暂停"
-                    },
+                    }
                 ) {
                     Icon(
                         painter = painterResource(id = R.drawable.ic_back),
-                        contentDescription = null,
+                        contentDescription = stringResource(id = R.string.dialog_close),
                         modifier = Modifier.size(24.dp),
                     )
                 }
@@ -234,7 +241,7 @@ fun ExcelReaderScreen(
                 IconButton(
                     onClick = { speakHeaders() },
                     modifier = Modifier.semantics {
-                        contentDescription = "朗读表头信息"
+                        contentDescription = excelHeaderInfoDesc
                     },
                 ) {
                     Icon(
@@ -246,7 +253,7 @@ fun ExcelReaderScreen(
                 IconButton(
                     onClick = onSettingsClick,
                     modifier = Modifier.semantics {
-                        contentDescription = "阅读设置"
+                        contentDescription = settingsDesc
                     },
                 ) {
                     Icon(
@@ -274,21 +281,23 @@ fun ExcelReaderScreen(
             speechRate = ttsController.speechRate.collectAsState().value,
             accentColor = excelAccent,
             progressColor = excelAccent,
-            previousLabel = "上行",
-            nextLabel = "下行",
-            positionText = "${currentRowIndex + 1}/${document.rows.size}",
+            previousLabel = stringResource(id = R.string.reader_prev_row),
+            nextLabel = stringResource(id = R.string.reader_next_row),
+            positionText = String.format(java.util.Locale.getDefault(), rowFormat, currentRowIndex + 1, document.rows.size),
             onPrevious = { ttsController.speakPrevious() },
             onPlayPause = { ttsController.togglePlayPause() },
             onNext = { ttsController.speakNext() },
             onRateChange = { ttsController.setSpeechRate(it) },
             leftExtra = {
                 var showModeMenu by remember { mutableStateOf(false) }
+                val currentModeLabel = if (readMode == ReadMode.ROW_BY_ROW) stringResource(id = R.string.excel_mode_row) else stringResource(id = R.string.excel_mode_column)
+                
                 Box {
                     ReaderControlButton(
                         iconRes = R.drawable.ic_mode,
-                        label = if (readMode == ReadMode.ROW_BY_ROW) "按行" else "按列",
+                        label = currentModeLabel,
                         onClick = { showModeMenu = !showModeMenu },
-                        buttonDescription = "当前${if (readMode == ReadMode.ROW_BY_ROW) "按行朗读" else "按列朗读"}，点击切换",
+                        buttonDescription = stringResource(id = R.string.excel_mode_switch_tip, if (readMode == ReadMode.ROW_BY_ROW) modeRowStr else modeColStr),
                     )
                     DropdownMenu(
                         expanded = showModeMenu,
@@ -296,10 +305,11 @@ fun ExcelReaderScreen(
                         modifier = Modifier.background(Color(0xFF333333)),
                     ) {
                         ReadMode.entries.forEach { mode ->
+                            val label = if (mode == ReadMode.ROW_BY_ROW) modeRowStr else modeColStr
                             DropdownMenuItem(
                                 text = {
                                     Text(
-                                        text = if (mode == ReadMode.ROW_BY_ROW) "按行朗读" else "按列朗读",
+                                        text = label,
                                         color = if (mode == readMode) excelAccent else Color.White,
                                         fontWeight = if (mode == readMode) FontWeight.Bold else FontWeight.Normal,
                                     )
@@ -337,24 +347,13 @@ fun ExcelReaderScreen(
                             change.consume()
                             val (x, y) = dragAmount
                             if (abs(x) > abs(y)) {
-                                when {
-                                    x > 0 -> swipeDirection = 0
-                                    x < 0 -> swipeDirection = 1
-                                }
-                            } else {
-                                when {
-                                    y > 0 -> swipeDirection = 2
-                                    y < 0 -> swipeDirection = 3
-                                }
+                                if (x > 0) swipeDirection = 0
+                                if (x < 0) swipeDirection = 1
                             }
                         },
                         onDragEnd = {
-                            when (swipeDirection) {
-                                0 -> ttsController.speakPrevious()
-                                1 -> ttsController.speakNext()
-                                2 -> { }
-                                3 -> { }
-                            }
+                            if (swipeDirection == 0) ttsController.speakPrevious()
+                            if (swipeDirection == 1) ttsController.speakNext()
                             swipeDirection = -1
                         },
                     )
@@ -370,7 +369,7 @@ fun ExcelReaderScreen(
                 if (document.images.isNotEmpty()) {
                     item {
                         Text(
-                            text = "表格图片 (${document.images.size})",
+                            text = stringResource(id = R.string.excel_image_section, document.images.size),
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color(0xFF217346),
@@ -382,7 +381,7 @@ fun ExcelReaderScreen(
                             items(document.images) { imagePath ->
                                 AsyncImage(
                                     model = imagePath,
-                                    contentDescription = "表格插图",
+                                    contentDescription = stringResource(id = R.string.desc_image_general),
                                     modifier = Modifier
                                         .size(120.dp)
                                         .clip(RoundedCornerShape(8.dp))
@@ -408,12 +407,9 @@ fun ExcelReaderScreen(
                     items = document.rows,
                     key = { index, _ -> "excel_row_$index" }
                 ) { index, row ->
-                    val isCurrent = when (readMode) {
-                        ReadMode.ROW_BY_ROW -> index == currentRowIndex
-                        ReadMode.COLUMN_BY_COLUMN -> index == currentRowIndex
-                    }
+                    val isCurrent = (index == currentRowIndex)
                     val isTotalRow = row.any { cell ->
-                        cell.contains("合计") || cell.contains("总计") || cell.contains("Total") || cell.contains("Sum")
+                        cell.contains("合计") || cell.contains("总计") || cell.contains("Total") || cell.contains("Sum") || cell.contains("SUM")
                     }
 
                     Box(
@@ -432,11 +428,7 @@ fun ExcelReaderScreen(
                             scrollState = sharedHorizontalScrollState,
                             onClick = { colIdx ->
                                 currentRowIndex = index
-                                if (colIdx != -1) {
-                                    currentColIndex = colIdx
-                                } else {
-                                    currentColIndex = 0
-                                }
+                                currentColIndex = if (colIdx != -1) colIdx else 0
                                 ttsController.speakCurrent()
                             },
                         )
@@ -550,14 +542,7 @@ fun ExcelDataRow(
             .fillMaxWidth()
             .clickable { onClick(-1) }
             .semantics {
-                contentDescription = buildString {
-                    append("第${index + 1}行。")
-                    headers.forEachIndexed { colIndex, header ->
-                        if (colIndex < row.size) {
-                            append("$header，${row[colIndex]}。")
-                        }
-                    }
-                }
+                contentDescription = "Row ${index + 1}"
             },
         shape = RoundedCornerShape(8.dp),
         colors = CardDefaults.cardColors(containerColor = backgroundColor),
@@ -624,7 +609,7 @@ fun CurrentRowIndicator(
             color = Color.White.copy(alpha = 0.7f),
         )
         Text(
-            text = "$totalCount",
+            text = totalCount.toString(),
             fontSize = 14.sp,
             color = Color.White.copy(alpha = 0.7f),
         )

@@ -19,6 +19,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -70,151 +71,147 @@ fun SettingsScreen(
     var showFeedbackDialog    by remember { mutableStateOf(false) }
     var showPrivacyDialog     by remember { mutableStateOf(false) }
 
-    val settingGroups = remember(uiState) {
-        listOf(
-            SettingGroup(
-                title = "阅读设置",
-                items = listOf(
-                    SettingItem(
-                        id = "tts",
-                        title = "语音朗读",
-                        subtitle = if (uiState.ttsEnabled) "已开启，自动朗读文档内容" else "已关闭",
-                        iconRes = R.drawable.ic_tts,
-                        iconColor = Color(0xFF4A6FA5),
-                        type = SettingType.TOGGLE,
-                    ),
-                    SettingItem(
-                        id = "speech_rate",
-                        title = "默认语速",
-                        subtitle = "当前: ${uiState.speechRate}x",
-                        iconRes = R.drawable.ic_speed,
-                        iconColor = Color(0xFF6B8CBB),
-                        type = SettingType.VALUE,
-                    ),
-                    SettingItem(
-                        id = "font_size",
-                        title = "字体大小",
-                        subtitle = "当前: ${uiState.fontSize}sp",
-                        iconRes = R.drawable.ic_text_size,
-                        iconColor = Color(0xFF8B9DC3),
-                        type = SettingType.VALUE,
-                    ),
-                    SettingItem(
-                        id = "auto_scroll",
-                        title = "自动滚动",
-                        subtitle = if (uiState.autoScroll) "朗读时自动滚动到当前位置" else "自动滚动已关闭",
-                        iconRes = R.drawable.ic_scroll,
-                        iconColor = Color(0xFF4A6FA5),
-                        type = SettingType.TOGGLE,
-                    ),
+    val settingGroups = listOf(
+        SettingGroup(
+            title = stringResource(id = R.string.group_reading),
+            items = listOf(
+                SettingItem(
+                    id = "tts",
+                    title = stringResource(id = R.string.setting_tts),
+                    subtitle = if (uiState.ttsEnabled) "已开启" else "已关闭",
+                    iconRes = R.drawable.ic_tts,
+                    iconColor = Color(0xFF4A6FA5),
+                    type = SettingType.TOGGLE,
+                ),
+                SettingItem(
+                    id = "speech_rate",
+                    title = stringResource(id = R.string.setting_speech_rate),
+                    subtitle = "${uiState.speechRate}x",
+                    iconRes = R.drawable.ic_speed,
+                    iconColor = Color(0xFF6B8CBB),
+                    type = SettingType.VALUE,
+                ),
+                SettingItem(
+                    id = "font_size",
+                    title = stringResource(id = R.string.setting_font_size),
+                    subtitle = "${uiState.fontSize}sp",
+                    iconRes = R.drawable.ic_text_size,
+                    iconColor = Color(0xFF8B9DC3),
+                    type = SettingType.VALUE,
+                ),
+                SettingItem(
+                    id = "auto_scroll",
+                    title = stringResource(id = R.string.setting_auto_scroll),
+                    subtitle = if (uiState.autoScroll) "已开启" else "已关闭",
+                    iconRes = R.drawable.ic_scroll,
+                    iconColor = Color(0xFF4A6FA5),
+                    type = SettingType.TOGGLE,
                 ),
             ),
-            SettingGroup(
-                title = "无障碍",
-                items = listOf(
-                    SettingItem(
-                        id = "high_contrast",
-                        title = "高对比度模式",
-                        subtitle = if (uiState.highContrast) "已开启，增强文字与背景对比度" else "增强文字与背景对比度",
-                        iconRes = R.drawable.ic_contrast,
-                        iconColor = Color(0xFF217346),
-                        type = SettingType.TOGGLE,
-                    ),
-                    SettingItem(
-                        id = "gesture",
-                        title = "手势控制",
-                        subtitle = "查看滑动和点击手势说明",
-                        iconRes = R.drawable.ic_gesture,
-                        iconColor = Color(0xFFD24726),
-                        type = SettingType.NAVIGATE,
-                    ),
-                    SettingItem(
-                        id = "accessibility",
-                        title = "TalkBack 优化",
-                        subtitle = "了解我们如何优化读屏体验",
-                        iconRes = R.drawable.ic_accessibility,
-                        iconColor = Color(0xFF4A6FA5),
-                        type = SettingType.NAVIGATE,
-                    ),
+        ),
+        SettingGroup(
+            title = stringResource(id = R.string.group_accessibility),
+            items = listOf(
+                SettingItem(
+                    id = "high_contrast",
+                    title = stringResource(id = R.string.setting_high_contrast),
+                    subtitle = if (uiState.highContrast) "已开启" else "已关闭",
+                    iconRes = R.drawable.ic_contrast,
+                    iconColor = Color(0xFF217346),
+                    type = SettingType.TOGGLE,
+                ),
+                SettingItem(
+                    id = "gesture",
+                    title = stringResource(id = R.string.setting_gesture),
+                    subtitle = "查看操作指南",
+                    iconRes = R.drawable.ic_gesture,
+                    iconColor = Color(0xFFD24726),
+                    type = SettingType.NAVIGATE,
+                ),
+                SettingItem(
+                    id = "accessibility",
+                    title = stringResource(id = R.string.setting_talkback),
+                    subtitle = "读屏体验优化",
+                    iconRes = R.drawable.ic_accessibility,
+                    iconColor = Color(0xFF4A6FA5),
+                    type = SettingType.NAVIGATE,
                 ),
             ),
-            SettingGroup(
-                title = "通用",
-                items = listOf(
-                    SettingItem(
-                        id = "storage",
-                        title = "存储管理",
-                        subtitle = "当前缓存: ${uiState.cacheSize}",
-                        iconRes = R.drawable.ic_storage,
-                        iconColor = Color(0xFF6B8CBB),
-                        type = SettingType.NAVIGATE,
-                    ),
-                    SettingItem(
-                        id = "language",
-                        title = "语言",
-                        subtitle = when (uiState.language) {
-                            "zh" -> "简体中文"
-                            "en" -> "English"
-                            else -> "简体中文"
-                        },
-                        iconRes = R.drawable.ic_language,
-                        iconColor = Color(0xFF8B9DC3),
-                        type = SettingType.SELECT,
-                    ),
-                    SettingItem(
-                        id = "theme",
-                        title = "主题",
-                        subtitle = when (uiState.theme) {
-                            "system" -> "跟随系统"
-                            "light"  -> "浅色"
-                            "dark"   -> "深色"
-                            else     -> "跟随系统"
-                        },
-                        iconRes = R.drawable.ic_theme,
-                        iconColor = Color(0xFF4A6FA5),
-                        type = SettingType.SELECT,
-                    ),
+        ),
+        SettingGroup(
+            title = stringResource(id = R.string.group_general),
+            items = listOf(
+                SettingItem(
+                    id = "storage",
+                    title = stringResource(id = R.string.setting_storage),
+                    subtitle = "当前缓存: ${uiState.cacheSize}",
+                    iconRes = R.drawable.ic_storage,
+                    iconColor = Color(0xFF6B8CBB),
+                    type = SettingType.NAVIGATE,
+                ),
+                SettingItem(
+                    id = "language",
+                    title = stringResource(id = R.string.setting_language),
+                    subtitle = when (uiState.language) {
+                        "zh" -> "简体中文"
+                        "en" -> "English"
+                        else -> "简体中文"
+                    },
+                    iconRes = R.drawable.ic_language,
+                    iconColor = Color(0xFF8B9DC3),
+                    type = SettingType.SELECT,
+                ),
+                SettingItem(
+                    id = "theme",
+                    title = stringResource(id = R.string.setting_theme),
+                    subtitle = when (uiState.theme) {
+                        "system" -> "跟随系统"
+                        "light"  -> "浅色"
+                        "dark"   -> "深色"
+                        else     -> "跟随系统"
+                    },
+                    iconRes = R.drawable.ic_theme,
+                    iconColor = Color(0xFF4A6FA5),
+                    type = SettingType.SELECT,
                 ),
             ),
-            SettingGroup(
-                title = "关于",
-                items = listOf(
-                    SettingItem(
-                        id = "about",
-                        title = "关于应用",
-                        subtitle = "版本 1.0.0 (Stable)",
-                        iconRes = R.drawable.ic_info,
-                        iconColor = Color(0xFF999999),
-                        type = SettingType.NAVIGATE,
-                    ),
-                    SettingItem(
-                        id = "feedback",
-                        title = "意见反馈",
-                        subtitle = "将您的建议告诉我们",
-                        iconRes = R.drawable.ic_feedback,
-                        iconColor = Color(0xFF999999),
-                        type = SettingType.NAVIGATE,
-                    ),
-                    SettingItem(
-                        id = "privacy",
-                        title = "隐私政策",
-                        subtitle = "了解我们如何保护您的数据",
-                        iconRes = R.drawable.ic_privacy,
-                        iconColor = Color(0xFF999999),
-                        type = SettingType.NAVIGATE,
-                    ),
+        ),
+        SettingGroup(
+            title = stringResource(id = R.string.group_about),
+            items = listOf(
+                SettingItem(
+                    id = "about",
+                    title = "关于应用",
+                    subtitle = "版本 1.0.0 (Stable)",
+                    iconRes = R.drawable.ic_info,
+                    iconColor = Color(0xFF999999),
+                    type = SettingType.NAVIGATE,
+                ),
+                SettingItem(
+                    id = "feedback",
+                    title = "意见反馈",
+                    subtitle = "将您的建议告诉我们",
+                    iconRes = R.drawable.ic_feedback,
+                    iconColor = Color(0xFF999999),
+                    type = SettingType.NAVIGATE,
+                ),
+                SettingItem(
+                    id = "privacy",
+                    title = "隐私政策",
+                    subtitle = "数据安全说明",
+                    iconRes = R.drawable.ic_privacy,
+                    iconColor = Color(0xFF999999),
+                    type = SettingType.NAVIGATE,
                 ),
             ),
-        )
-    }
+        ),
+    )
 
-    // 外层 Column：顶部固定预览，下方列表独立滚动
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(Color(0xFFF5F5F5)),
     ) {
-        // ── 吸顶预览区 ────────────────────────────────
         SettingsPreviewSection(
             fontSize    = uiState.fontSize,
             highContrast = uiState.highContrast,
@@ -222,7 +219,6 @@ fun SettingsScreen(
             ttsEnabled  = uiState.ttsEnabled,
         )
 
-        // 分隔阴影线
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -231,7 +227,6 @@ fun SettingsScreen(
                 .background(Color(0xFFE0E0E0)),
         )
 
-        // ── 可滚动设置列表 ────────────────────────────
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -277,11 +272,11 @@ fun SettingsScreen(
                 textAlign = TextAlign.Center,
             )
             
-            // 底部留白，避免最后的内容被导航栏遮挡
             Spacer(modifier = Modifier.height(80.dp))
         }
     }
 
+    // Dialogs
     if (showSpeechRateDialog) {
         SpeechRateDialog(
             currentRate = uiState.speechRate,
@@ -495,6 +490,43 @@ private fun PrivacyDialog(onDismiss: () -> Unit) {
         },
         confirmButton = {
             TextButton(onClick = onDismiss) { Text("同意并接受") }
+        }
+    )
+}
+
+// ==================== 关于对话框 ====================
+
+@Composable
+private fun AboutDialog(onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("关于智能阅读器", fontWeight = FontWeight.Bold) },
+        text = {
+            Column {
+                Text(
+                    text = "版本：1.0.0 (Stable)",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF4A6FA5)
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = "智能阅读器是一款专为视障和低视力用户打造的全能文档辅助工具。支持 Word, Excel, PPT, PDF 以及 OCR 拍照识字，旨在用技术消除阅读障碍。",
+                    fontSize = 14.sp,
+                    lineHeight = 20.sp
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = "© 2024 智能阅读器团队",
+                    fontSize = 12.sp,
+                    color = Color.Gray
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("确定")
+            }
         }
     )
 }
@@ -1075,41 +1107,6 @@ private fun LanguageDialog(
             }
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text("取消") } },
-    )
-}
-
-@Composable
-private fun AboutDialog(onDismiss: () -> Unit) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("关于智能阅读器", fontWeight = FontWeight.Bold) },
-        text = {
-            Column {
-                Text(
-                    text = "版本：1.0.0 (Stable)",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF4A6FA5)
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-                Text(
-                    text = "智能阅读器是一款专为视障和低视力用户打造的全能文档辅助工具。支持 Word, Excel, PPT, PDF 以及 OCR 拍照识字，旨在用技术消除阅读障碍。",
-                    fontSize = 14.sp,
-                    lineHeight = 20.sp
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    text = "© 2024 智能阅读器团队",
-                    fontSize = 12.sp,
-                    color = Color.Gray
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text("确定")
-            }
-        }
     )
 }
 

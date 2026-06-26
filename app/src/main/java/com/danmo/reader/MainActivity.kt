@@ -24,6 +24,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -84,14 +85,14 @@ sealed class Screen {
  * 底部/侧边导航项的数据结构
  */
 data class BottomNavItemData(
-    val label: String,
+    val labelRes: Int,
     val iconRes: Int
 )
 
 val bottomNavItems = listOf(
-    BottomNavItemData("文件", R.drawable.ic_files),
-    BottomNavItemData("首页", R.drawable.ic_home),
-    BottomNavItemData("设置", R.drawable.ic_settings_nav)
+    BottomNavItemData(R.string.tab_files, R.drawable.ic_files),
+    BottomNavItemData(R.string.tab_home, R.drawable.ic_home),
+    BottomNavItemData(R.string.tab_settings, R.drawable.ic_settings_nav)
 )
 
 /**
@@ -194,35 +195,41 @@ class MainActivity : AppCompatActivity() {
                                 if (topScreen == null) {
                                     when (currentTab) {
                                         MainTab.FILES -> {
-                                            TopAppBar(
-                                                title = { Text("文件管理", fontSize = 20.sp, fontWeight = FontWeight.Bold) },
-                                                navigationIcon = {
-                                                    IconButton(onClick = { currentTab = MainTab.HOME }) {
-                                                        Icon(painterResource(id = R.drawable.ic_back), contentDescription = "返回")
-                                                    }
-                                                },
-                                                colors = TopAppBarDefaults.topAppBarColors(
-                                                    containerColor = Color(0xFF4A6FA5),
-                                                    titleContentColor = Color.White,
-                                                    navigationIconContentColor = Color.White
-                                                )
+                                        TopAppBar(
+                                            title = { Text(stringResource(id = R.string.tab_files), fontSize = 20.sp, fontWeight = FontWeight.Bold) },
+                                            navigationIcon = {
+                                                IconButton(onClick = { 
+                                                    HapticUtils.triggerTick(this@MainActivity)
+                                                    currentTab = MainTab.HOME 
+                                                }) {
+                                                    Icon(painterResource(id = R.drawable.ic_back), contentDescription = stringResource(id = R.string.dialog_close))
+                                                }
+                                            },
+                                            colors = TopAppBarDefaults.topAppBarColors(
+                                                containerColor = Color(0xFF4A6FA5),
+                                                titleContentColor = Color.White,
+                                                navigationIconContentColor = Color.White
                                             )
-                                        }
-                                        MainTab.SETTINGS -> {
-                                            TopAppBar(
-                                                title = { Text("设置", fontSize = 20.sp, fontWeight = FontWeight.Bold) },
-                                                navigationIcon = {
-                                                    IconButton(onClick = { currentTab = MainTab.HOME }) {
-                                                        Icon(painterResource(id = R.drawable.ic_back), contentDescription = "返回")
-                                                    }
-                                                },
-                                                colors = TopAppBarDefaults.topAppBarColors(
-                                                    containerColor = Color(0xFF4A6FA5),
-                                                    titleContentColor = Color.White,
-                                                    navigationIconContentColor = Color.White
-                                                )
+                                        )
+                                    }
+                                    MainTab.SETTINGS -> {
+                                        TopAppBar(
+                                            title = { Text(stringResource(id = R.string.tab_settings), fontSize = 20.sp, fontWeight = FontWeight.Bold) },
+                                            navigationIcon = {
+                                                IconButton(onClick = { 
+                                                    HapticUtils.triggerTick(this@MainActivity)
+                                                    currentTab = MainTab.HOME 
+                                                }) {
+                                                    Icon(painterResource(id = R.drawable.ic_back), contentDescription = stringResource(id = R.string.dialog_close))
+                                                }
+                                            },
+                                            colors = TopAppBarDefaults.topAppBarColors(
+                                                containerColor = Color(0xFF4A6FA5),
+                                                titleContentColor = Color.White,
+                                                navigationIconContentColor = Color.White
                                             )
-                                        }
+                                        )
+                                    }
                                         MainTab.HOME -> { /* 首页自带 Header */ }
                                     }
                                 }
@@ -259,10 +266,13 @@ class MainActivity : AppCompatActivity() {
                                         }
                                         MainTab.FILES -> {
                                             ExtendedFloatingActionButton(
-                                                onClick = { openDocumentPicker() },
+                                                onClick = { 
+                                                    HapticUtils.triggerTick(this@MainActivity)
+                                                    openDocumentPicker() 
+                                                },
                                                 containerColor = Color(0xFF4A6FA5),
                                                 icon = { Icon(painterResource(id = R.drawable.ic_add), contentDescription = null, tint = Color.White) },
-                                                text = { Text("打开新文件", color = Color.White) }
+                                                text = { Text(stringResource(id = R.string.action_open_new_file), color = Color.White) }
                                             )
                                         }
                                         MainTab.SETTINGS -> {}
@@ -572,9 +582,10 @@ class MainActivity : AppCompatActivity() {
                 bottomNavItems.forEachIndexed { index, item ->
                     val isSelected = selectedTab == index
                     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f).clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = { onTabSelected(index) }).padding(vertical = 4.dp)) {
-                        Icon(painter = painterResource(id = item.iconRes), contentDescription = item.label, modifier = Modifier.size(24.dp), tint = if (isSelected) Color(0xFF4A6FA5) else Color(0xFF999999))
+                        val label = stringResource(id = item.labelRes)
+                        Icon(painter = painterResource(id = item.iconRes), contentDescription = label, modifier = Modifier.size(24.dp), tint = if (isSelected) Color(0xFF4A6FA5) else Color(0xFF999999))
                         Spacer(modifier = Modifier.height(2.dp))
-                        Text(text = item.label, fontSize = 11.sp, color = if (isSelected) Color(0xFF4A6FA5) else Color(0xFF999999))
+                        Text(text = label, fontSize = 11.sp, color = if (isSelected) Color(0xFF4A6FA5) else Color(0xFF999999))
                     }
                 }
             }
@@ -590,8 +601,8 @@ class MainActivity : AppCompatActivity() {
                 NavigationRailItem(
                     selected = isSelected,
                     onClick = { onTabSelected(index) },
-                    icon = { Icon(painter = painterResource(id = item.iconRes), contentDescription = item.label, modifier = Modifier.size(24.dp)) },
-                    label = { Text(item.label, fontSize = 11.sp) },
+                    icon = { Icon(painter = painterResource(id = item.iconRes), contentDescription = stringResource(id = item.labelRes), modifier = Modifier.size(24.dp)) },
+                    label = { Text(stringResource(id = item.labelRes), fontSize = 11.sp) },
                     colors = NavigationRailItemDefaults.colors(selectedIconColor = Color(0xFF4A6FA5), selectedTextColor = Color(0xFF4A6FA5), unselectedIconColor = Color(0xFF999999), unselectedTextColor = Color(0xFF999999), indicatorColor = Color(0xFF4A6FA5).copy(alpha = 0.1f))
                 )
             }

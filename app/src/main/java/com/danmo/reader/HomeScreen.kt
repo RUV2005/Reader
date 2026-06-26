@@ -18,6 +18,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -30,8 +31,8 @@ import com.danmo.reader.data.repository.RecentFileRepository
  * 首页功能卡片的数据结构
  */
 data class FunctionCardData(
-    val title: String,            // 卡片标题 (如: 打开Word)
-    val subtitle: String,         // 副标题 (如: 打开以查看文档)
+    val titleRes: Int,            // 卡片标题资源 ID
+    val subtitleRes: Int,         // 副标题资源 ID
     val iconRes: Int,             // 卡片显示的图标资源 ID
     val backgroundColor: Color    // 卡片的背景主题色
 )
@@ -43,26 +44,26 @@ data class FunctionCardData(
  */
 val functionCards = listOf(
     FunctionCardData(
-        title = "打开Word",
-        subtitle = "打开以查看文档",
+        titleRes = R.string.action_open_word,
+        subtitleRes = R.string.desc_open_word,
         iconRes = R.drawable.ic_word,
         backgroundColor = Color(0xFF2B579A)
     ),
     FunctionCardData(
-        title = "打开Excel",
-        subtitle = "打开以查看表格",
+        titleRes = R.string.action_open_excel,
+        subtitleRes = R.string.desc_open_excel,
         iconRes = R.drawable.ic_excel,
         backgroundColor = Color(0xFF217346)
     ),
     FunctionCardData(
-        title = "打开PPT",
-        subtitle = "打开以查看演示",
+        titleRes = R.string.action_open_ppt,
+        subtitleRes = R.string.desc_open_ppt,
         iconRes = R.drawable.ic_ppt,
         backgroundColor = Color(0xFFD24726)
     ),
     FunctionCardData(
-        title = "打开PDF",
-        subtitle = "打开以查看PDF",
+        titleRes = R.string.action_open_pdf,
+        subtitleRes = R.string.desc_open_pdf,
         iconRes = R.drawable.ic_pdf,
         backgroundColor = Color(0xFFB91C1C)
     )
@@ -93,8 +94,8 @@ fun HomeScreen(
         // 1. 顶部 Header 区
         item {
             HeaderSection(
-                greeting = "下午好",
-                subtitle = "高效阅读每一天",
+                greeting = stringResource(id = R.string.greeting_afternoon),
+                subtitle = stringResource(id = R.string.home_subtitle),
                 onSettingsClick = onSettingsClick
             )
         }
@@ -201,17 +202,17 @@ fun FunctionCardsGrid(
             // 降低负位移量，适应更紧凑的横向卡片
             .then(if (useOffset) Modifier.offset(y = (-20).dp) else Modifier)
     ) {
-        // 第一行卡片
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             cards.take(2).forEach { card ->
+                val title = stringResource(id = card.titleRes)
                 FunctionCardItem(
                     card = card,
                     isLandscape = isLandscape,
                     modifier = Modifier.weight(1f),
-                    onClick = { onCardClick(card.title) }
+                    onClick = { onCardClick(title) }
                 )
             }
         }
@@ -224,11 +225,12 @@ fun FunctionCardsGrid(
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             cards.asSequence().drop(2).take(2).forEach { card ->
+                val title = stringResource(id = card.titleRes)
                 FunctionCardItem(
                     card = card,
                     isLandscape = isLandscape,
                     modifier = Modifier.weight(1f),
-                    onClick = { onCardClick(card.title) }
+                    onClick = { onCardClick(title) }
                 )
             }
         }
@@ -275,7 +277,7 @@ fun FunctionCardItem(
             ) {
                 Icon(
                     painter = painterResource(id = card.iconRes),
-                    contentDescription = card.title,
+                    contentDescription = stringResource(id = card.titleRes),
                     tint = Color.White,
                     modifier = Modifier.size(if (isLandscape) 20.dp else 24.dp)
                 )
@@ -289,7 +291,7 @@ fun FunctionCardItem(
                 verticalArrangement = Arrangement.Center
             ) {
                 Text(
-                    text = card.title,
+                    text = stringResource(id = card.titleRes),
                     fontSize = if (isLandscape) 15.sp else 16.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.White
@@ -297,7 +299,7 @@ fun FunctionCardItem(
                 
                 if (!isLandscape) {
                     Text(
-                        text = card.subtitle,
+                        text = stringResource(id = card.subtitleRes),
                         fontSize = 12.sp,
                         color = Color.White.copy(alpha = 0.8f),
                         maxLines = 1
@@ -364,14 +366,14 @@ fun RecentFilesSection(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "最近打开",
+                text = stringResource(id = R.string.home_recent_files),
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color(0xFF333333)
             )
             if (files.isNotEmpty()) {
                 Text(
-                    text = "查看全部",
+                    text = stringResource(id = R.string.home_view_all),
                     fontSize = 14.sp,
                     color = Color(0xFF4A6FA5),
                     modifier = Modifier.clickable(onClick = onViewAllClick)
@@ -416,13 +418,13 @@ private fun EmptyRecentFiles() {
         )
         Spacer(modifier = Modifier.height(12.dp))
         Text(
-            text = "暂无最近打开的文件",
+            text = stringResource(id = R.string.home_no_recent_files),
             fontSize = 14.sp,
             color = Color(0xFF999999),
         )
         Spacer(modifier = Modifier.height(4.dp))
         Text(
-            text = "打开文档后将显示在这里",
+            text = stringResource(id = R.string.home_recent_files_tip),
             fontSize = 12.sp,
             color = Color(0xFFBBBBBB),
         )
