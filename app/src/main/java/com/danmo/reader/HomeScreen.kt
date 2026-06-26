@@ -36,14 +36,6 @@ data class FunctionCardData(
     val backgroundColor: Color    // 卡片的背景主题色
 )
 
-/**
- * 底部/侧边导航项的数据结构
- */
-data class BottomNavItemData(
-    val label: String,            // 导航项显示的文字
-    val iconRes: Int              // 导航项显示的图标
-)
-
 // ==================== 静态配置数据 ====================
 
 /**
@@ -64,7 +56,7 @@ val functionCards = listOf(
     ),
     FunctionCardData(
         title = "打开PPT",
-        subtitle = "打开以查看演示文稿",
+        subtitle = "打开以查看演示",
         iconRes = R.drawable.ic_ppt,
         backgroundColor = Color(0xFFD24726)
     ),
@@ -76,184 +68,52 @@ val functionCards = listOf(
     )
 )
 
-/**
- * 导航栏项配置
- */
-val bottomNavItems = listOf(
-    BottomNavItemData("文件", R.drawable.ic_files),
-    BottomNavItemData("首页", R.drawable.ic_home),
-    BottomNavItemData("设置", R.drawable.ic_settings_nav)
-)
-
 // ==================== 首页主屏幕 ====================
 
 /**
- * 首页 Composable，支持响应式布局（自动切换横竖屏结构）
+ * 首页 Composable，支持响应式布局
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     onNavigateToShelf: () -> Unit = {},          // 切换到“文件”Tab的回调
     onNavigateToProfile: () -> Unit = {},        // 切换到“设置”Tab的回调
     onSettingsClick: () -> Unit = {},            // 点击右上角设置按钮的回调
+    onViewAllClick: () -> Unit = {},             // 点击“查看全部”的回调
     onScanClick: () -> Unit = {},                // 扫描按钮回调
     onFunctionCardClick: (String) -> Unit = {},  // 点击文档类型卡片的回调
     onRecentFileClick: (RecentFile) -> Unit = {}, // 点击最近打开文件的回调
     recentFiles: List<RecentFile> = emptyList(), // 最近文件历史数据列表
 ) {
-    val configuration = LocalConfiguration.current
-    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-    var selectedTab by remember { mutableIntStateOf(1) } // 首页默认索引为 1
-
-    if (isLandscape) {
-        // ── 横屏布局方案 ────────────────────────────────
-        // 采用“左侧导航导轨 + 右侧双栏内容”的结构
-        Row(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color(0xFFF5F5F5))
-                .systemBarsPadding() // 避免遮挡系统状态栏/手势条
-        ) {
-            // 1. 左侧导航导轨 (NavigationRail)
-            NavigationRail(
-                containerColor = Color.White,
-                header = {
-                    ScanFloatingButton {
-                        onScanClick()
-                    }
-                },
-                modifier = Modifier.fillMaxHeight()
-            ) {
-                Spacer(modifier = Modifier.weight(1f))
-                bottomNavItems.forEachIndexed { index, item ->
-                    val isSelected = selectedTab == index
-                    NavigationRailItem(
-                        selected = isSelected,
-                        onClick = {
-                            selectedTab = index
-                            when (index) {
-                                0 -> onNavigateToShelf()
-                                1 -> { /* 已经在首页 */ }
-                                2 -> onNavigateToProfile()
-                            }
-                        },
-                        icon = {
-                            Icon(
-                                painter = painterResource(id = item.iconRes),
-                                contentDescription = item.label,
-                                modifier = Modifier.size(24.dp)
-                            )
-                        },
-                        label = { Text(item.label, fontSize = 11.sp) },
-                        colors = NavigationRailItemDefaults.colors(
-                            selectedIconColor = Color(0xFF4A6FA5),
-                            selectedTextColor = Color(0xFF4A6FA5),
-                            unselectedIconColor = Color(0xFF999999),
-                            unselectedTextColor = Color(0xFF999999),
-                            indicatorColor = Color(0xFF4A6FA5).copy(alpha = 0.1f)
-                        )
-                    )
-                }
-                Spacer(modifier = Modifier.weight(1f))
-            }
-
-            // 2. 右侧双栏内容区
-            Row(modifier = Modifier.weight(1f).fillMaxHeight()) {
-                // 左栏：放置欢迎语和四个核心功能卡片
-                LazyColumn(
-                    modifier = Modifier.weight(1.2f).fillMaxHeight(),
-                    contentPadding = PaddingValues(16.dp)
-                ) {
-                    item {
-                        HeaderSection(
-                            greeting = "下午好",
-                            subtitle = "高效阅读每一天",
-                            isLandscape = true,
-                            onSettingsClick = onSettingsClick
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
-                    }
-                    item {
-                        // 横屏下卡片平铺排列，不使用竖屏下的重叠负位移
-                        FunctionCardsGrid(
-                            cards = functionCards,
-                            useOffset = false,
-                            isLandscape = true,
-                            onCardClick = onFunctionCardClick
-                        )
-                    }
-                }
-
-                // 右栏：放置最近文件列表
-                LazyColumn(
-                    modifier = Modifier.weight(1f).fillMaxHeight(),
-                    contentPadding = PaddingValues(16.dp)
-                ) {
-                    item {
-                        RecentFilesSection(
-                            files = recentFiles,
-                            onFileClick = onRecentFileClick
-                        )
-                    }
-                }
-            }
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFFF5F5F5)),
+        contentPadding = PaddingValues(bottom = 16.dp)
+    ) {
+        // 1. 顶部 Header 区
+        item {
+            HeaderSection(
+                greeting = "下午好",
+                subtitle = "高效阅读每一天",
+                onSettingsClick = onSettingsClick
+            )
         }
-    } else {
-        // ── 竖屏布局方案 ────────────────────────────────
-        // 采用经典的“列表滚动 + 底部导航栏”结构
-        Scaffold(
-            bottomBar = {
-                BottomNavigationBar(
-                    selectedTab = selectedTab,
-                    onTabSelected = { index ->
-                        selectedTab = index
-                        when (index) {
-                            0 -> onNavigateToShelf()
-                            1 -> { /* 已经在首页 */ }
-                            2 -> onNavigateToProfile()
-                        }
-                    }
-                )
-            },
-            floatingActionButton = {
-                ScanFloatingButton {
-                    onScanClick()
-                }
-            },
-            floatingActionButtonPosition = FabPosition.Center
-        ) { paddingValues ->
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues)
-                    .background(Color(0xFFF5F5F5)),
-                contentPadding = PaddingValues(bottom = 16.dp)
-            ) {
-                // 1. 顶部 Header 区
-                item {
-                    HeaderSection(
-                        greeting = "下午好",
-                        subtitle = "高效阅读每一天",
-                        onSettingsClick = onSettingsClick
-                    )
-                }
 
-                // 2. 功能入口卡片网格
-                item {
-                    FunctionCardsGrid(
-                        cards = functionCards,
-                        onCardClick = onFunctionCardClick
-                    )
-                }
+        // 2. 功能入口卡片网格
+        item {
+            FunctionCardsGrid(
+                cards = functionCards,
+                onCardClick = onFunctionCardClick
+            )
+        }
 
-                // 3. 最近文件历史记录
-                item {
-                    RecentFilesSection(
-                        files = recentFiles,
-                        onFileClick = onRecentFileClick
-                    )
-                }
-            }
+        // 3. 最近文件历史记录
+        item {
+            RecentFilesSection(
+                files = recentFiles,
+                onViewAllClick = onViewAllClick,
+                onFileClick = onRecentFileClick
+            )
         }
     }
 }
@@ -338,8 +198,8 @@ fun FunctionCardsGrid(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = if (useOffset) 16.dp else 0.dp)
-            // 竖屏下通过负位移实现卡片与 Header 视觉上的“衔接”
-            .then(if (useOffset) Modifier.offset(y = (-30).dp) else Modifier)
+            // 降低负位移量，适应更紧凑的横向卡片
+            .then(if (useOffset) Modifier.offset(y = (-20).dp) else Modifier)
     ) {
         // 第一行卡片
         Row(
@@ -377,6 +237,7 @@ fun FunctionCardsGrid(
 
 /**
  * 单个功能卡片组件，支持响应式尺寸调整
+ * 改版布局：左侧图标，右侧文字
  */
 @Composable
 fun FunctionCardItem(
@@ -387,107 +248,59 @@ fun FunctionCardItem(
 ) {
     Card(
         modifier = modifier
-            .height(if (isLandscape) 85.dp else 110.dp)
+            .height(if (isLandscape) 70.dp else 80.dp) // 压缩高度使布局更精致
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
             containerColor = card.backgroundColor
         ),
         elevation = CardDefaults.cardElevation(
-            defaultElevation = 4.dp
+            defaultElevation = 2.dp
         )
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(if (isLandscape) 12.dp else 16.dp)
-        ) {
-            Text(
-                text = card.title,
-                fontSize = if (isLandscape) 14.sp else 16.sp,
-                fontWeight = FontWeight.Medium,
-                color = Color.White
-            )
-
-            Spacer(modifier = Modifier.weight(1f))
-
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                // 卡片底部图标
-                Box(
-                    modifier = Modifier
-                        .size(if (isLandscape) 28.dp else 36.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(card.backgroundColor),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        painter = painterResource(id = card.iconRes),
-                        contentDescription = card.title,
-                        tint = Color.White,
-                        modifier = Modifier.size(if (isLandscape) 16.dp else 20.dp)
-                    )
-                }
-
-                if (!isLandscape) {
-                    // 横屏下隐藏详细描述以精简界面
-                    Text(
-                        text = card.subtitle,
-                        fontSize = 11.sp,
-                        color = Color.White.copy(alpha = 0.8f)
-                    )
-                }
-            }
-        }
-    }
-}
-
-// ==================== BottomNavigationBar (底部导航栏) ====================
-
-@Composable
-fun BottomNavigationBar(
-    selectedTab: Int,
-    onTabSelected: (Int) -> Unit
-) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = Color.White,
-        shadowElevation = 8.dp
     ) {
         Row(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 8.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-            verticalAlignment = Alignment.CenterVertically
+                .fillMaxSize()
+                .padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Start
         ) {
-            bottomNavItems.forEachIndexed { index, item ->
-                val isSelected = selectedTab == index
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier
-                        .weight(1f)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClick = { onTabSelected(index) }
-                        )
-                        .padding(vertical = 4.dp)
-                ) {
-                    Icon(
-                        painter = painterResource(id = item.iconRes),
-                        contentDescription = item.label,
-                        modifier = Modifier.size(24.dp),
-                        tint = if (isSelected) Color(0xFF4A6FA5) else Color(0xFF999999)
-                    )
-                    Spacer(modifier = Modifier.height(2.dp))
+            // 1. 左侧图标区
+            Box(
+                modifier = Modifier
+                    .size(if (isLandscape) 32.dp else 40.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color.White.copy(alpha = 0.2f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    painter = painterResource(id = card.iconRes),
+                    contentDescription = card.title,
+                    tint = Color.White,
+                    modifier = Modifier.size(if (isLandscape) 20.dp else 24.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            // 2. 右侧文字区
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    text = card.title,
+                    fontSize = if (isLandscape) 15.sp else 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+                
+                if (!isLandscape) {
                     Text(
-                        text = item.label,
-                        fontSize = 11.sp,
-                        color = if (isSelected) Color(0xFF4A6FA5) else Color(0xFF999999)
+                        text = card.subtitle,
+                        fontSize = 12.sp,
+                        color = Color.White.copy(alpha = 0.8f),
+                        maxLines = 1
                     )
                 }
             }
@@ -502,10 +315,11 @@ fun BottomNavigationBar(
  */
 @Composable
 fun ScanFloatingButton(
+    modifier: Modifier = Modifier,
     onScanClick: () -> Unit
 ) {
     Box(
-        modifier = Modifier
+        modifier = modifier
             .size(64.dp)
             .clip(CircleShape)
             .background(
@@ -536,6 +350,7 @@ fun ScanFloatingButton(
 @Composable
 fun RecentFilesSection(
     files: List<RecentFile>,
+    onViewAllClick: () -> Unit = {},
     onFileClick: (RecentFile) -> Unit
 ) {
     Column(
@@ -559,7 +374,7 @@ fun RecentFilesSection(
                     text = "查看全部",
                     fontSize = 14.sp,
                     color = Color(0xFF4A6FA5),
-                    modifier = Modifier.clickable { /* TODO: 跳转至文件列表 Tab */ }
+                    modifier = Modifier.clickable(onClick = onViewAllClick)
                 )
             }
         }

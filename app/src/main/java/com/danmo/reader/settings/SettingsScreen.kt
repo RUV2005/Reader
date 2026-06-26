@@ -51,19 +51,11 @@ data class SettingGroup(
     val items: List<SettingItem>,
 )
 
-// ==================== 主屏幕 ====================
+// ==================== 设置主屏幕 ====================
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     viewModel: SettingsViewModel = viewModel(),
-    onBackClick: () -> Unit = {},
-    onNavigateToAbout: () -> Unit = {},
-    onNavigateToAccessibility: () -> Unit = {},
-    onNavigateToGesture: () -> Unit = {},
-    onNavigateToStorage: () -> Unit = {},
-    onNavigateToFeedback: () -> Unit = {},
-    onNavigateToPrivacy: () -> Unit = {},
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
@@ -209,106 +201,77 @@ fun SettingsScreen(
         )
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        "设置",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                    )
-                },
-                navigationIcon = {
-                    IconButton(
-                        onClick = onBackClick,
-                        modifier = Modifier.semantics { contentDescription = "返回" },
-                    ) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.ic_back),
-                            contentDescription = null,
-                            modifier = Modifier.size(24.dp),
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color(0xFF4A6FA5),
-                    titleContentColor = Color.White,
-                    navigationIconContentColor = Color.White,
-                ),
-            )
-        },
-    ) { paddingValues ->
-        // 外层 Column：顶部固定预览，下方列表独立滚动
+    // 外层 Column：顶部固定预览，下方列表独立滚动
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFFF5F5F5)),
+    ) {
+        // ── 吸顶预览区 ────────────────────────────────
+        SettingsPreviewSection(
+            fontSize    = uiState.fontSize,
+            highContrast = uiState.highContrast,
+            speechRate  = uiState.speechRate,
+            ttsEnabled  = uiState.ttsEnabled,
+        )
+
+        // 分隔阴影线
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .shadow(elevation = 4.dp)
+                .background(Color(0xFFE0E0E0)),
+        )
+
+        // ── 可滚动设置列表 ────────────────────────────
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
-                .background(Color(0xFFF5F5F5)),
+                .verticalScroll(rememberScrollState()),
         ) {
-            // ── 吸顶预览区 ────────────────────────────────
-            SettingsPreviewSection(
-                fontSize    = uiState.fontSize,
-                highContrast = uiState.highContrast,
-                speechRate  = uiState.speechRate,
-                ttsEnabled  = uiState.ttsEnabled,
-            )
-
-            // 分隔阴影线，视觉上区隔预览与列表
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(1.dp)
-                    .shadow(elevation = 4.dp)
-                    .background(Color(0xFFE0E0E0)),
-            )
-
-            // ── 可滚动设置列表 ────────────────────────────
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState()),
-            ) {
-                settingGroups.forEach { group ->
-                    SettingGroupSection(
-                        group = group,
-                        onItemClick = { item ->
-                            when (item.id) {
-                                "tts"           -> viewModel.toggleTts()
-                                "auto_scroll"   -> viewModel.toggleAutoScroll()
-                                "high_contrast" -> viewModel.toggleHighContrast()
-                                "speech_rate"   -> showSpeechRateDialog = true
-                                "font_size"     -> showFontSizeDialog = true
-                                "language"      -> showLanguageDialog = true
-                                "theme"         -> showThemeDialog = true
-                                "about"         -> onNavigateToAbout()
-                                "accessibility" -> onNavigateToAccessibility()
-                                "gesture"       -> onNavigateToGesture()
-                                "storage"       -> onNavigateToStorage()
-                                "feedback"      -> onNavigateToFeedback()
-                                "privacy"       -> onNavigateToPrivacy()
-                            }
-                        },
-                        toggleStates = mapOf(
-                            "tts"           to uiState.ttsEnabled,
-                            "auto_scroll"   to uiState.autoScroll,
-                            "high_contrast" to uiState.highContrast,
-                        ),
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(32.dp))
-
-                Text(
-                    text = "版本 1.0.0 (Build 20240611)",
-                    fontSize = 12.sp,
-                    color = Color(0xFFBBBBBB),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 24.dp),
-                    textAlign = TextAlign.Center,
+            settingGroups.forEach { group ->
+                SettingGroupSection(
+                    group = group,
+                    onItemClick = { item ->
+                        when (item.id) {
+                            "tts"           -> viewModel.toggleTts()
+                            "auto_scroll"   -> viewModel.toggleAutoScroll()
+                            "high_contrast" -> viewModel.toggleHighContrast()
+                            "speech_rate"   -> showSpeechRateDialog = true
+                            "font_size"     -> showFontSizeDialog = true
+                            "language"      -> showLanguageDialog = true
+                            "theme"         -> showThemeDialog = true
+                            "about"         -> {}
+                            "accessibility" -> {}
+                            "gesture"       -> {}
+                            "storage"       -> {}
+                            "feedback"      -> {}
+                            "privacy"       -> {}
+                        }
+                    },
+                    toggleStates = mapOf(
+                        "tts"           to uiState.ttsEnabled,
+                        "auto_scroll"   to uiState.autoScroll,
+                        "high_contrast" to uiState.highContrast,
+                    ),
                 )
             }
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            Text(
+                text = "版本 1.0.0 (Build 20240611)",
+                fontSize = 12.sp,
+                color = Color(0xFFBBBBBB),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 24.dp),
+                textAlign = TextAlign.Center,
+            )
+            
+            // 底部留白，避免最后的内容被导航栏遮挡
+            Spacer(modifier = Modifier.height(80.dp))
         }
     }
 
@@ -380,12 +343,10 @@ private fun SettingsPreviewSection(
 
     fun speakPreview() {
         if (!isTtsReady) return
-        isPlaying = true // 立即设置状态，提升响应感
+        isPlaying = true 
         tts?.setSpeechRate(speechRate)
         tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-            override fun onStart(utteranceId: String?)  {
-                // UI 线程更新
-            }
+            override fun onStart(utteranceId: String?)  { }
             override fun onDone(utteranceId: String?)   { isPlaying = false }
             override fun onError(utteranceId: String?)  { isPlaying = false }
             override fun onStop(utteranceId: String?, interrupted: Boolean) { isPlaying = false }
@@ -401,7 +362,6 @@ private fun SettingsPreviewSection(
         isPlaying = false
     }
 
-    // 颜色随高对比度平滑过渡
     val bgColor by animateColorAsState(
         targetValue = if (highContrast) Color(0xFF000000) else Color(0xFF1E2A3A),
         animationSpec = tween(300), label = "previewBg",
@@ -425,7 +385,6 @@ private fun SettingsPreviewSection(
             .background(bgColor)
             .padding(horizontal = 16.dp, vertical = 12.dp),
     ) {
-        // 标题行：说明这是预览区
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -441,7 +400,6 @@ private fun SettingsPreviewSection(
                     contentDescription = "效果预览区域，显示当前字体和对比度效果"
                 },
             )
-            // 状态标签
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 PreviewTag(
                     text = "字体 ${fontSize}sp",
@@ -465,7 +423,6 @@ private fun SettingsPreviewSection(
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        // 当前高亮段落（模拟朗读中的高亮）
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -487,7 +444,6 @@ private fun SettingsPreviewSection(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // 普通正文
         Text(
             text = "江天一色无纤尘，皎皎空中孤月轮。",
             fontSize = fontSize.sp,
@@ -498,7 +454,6 @@ private fun SettingsPreviewSection(
             },
         )
 
-        // TTS 试听按钮
         if (ttsEnabled) {
             Spacer(modifier = Modifier.height(10.dp))
             TtsPreviewButton(
@@ -512,7 +467,6 @@ private fun SettingsPreviewSection(
             )
         }
 
-        // 高对比度开启时的补充说明
         if (highContrast) {
             Spacer(modifier = Modifier.height(8.dp))
             Text(
@@ -526,8 +480,6 @@ private fun SettingsPreviewSection(
         }
     }
 }
-
-// ==================== TTS 试听按钮 ====================
 
 @Composable
 private fun TtsPreviewButton(
@@ -585,8 +537,6 @@ private fun TtsPreviewButton(
     }
 }
 
-// ==================== 预览标签 ====================
-
 @Composable
 private fun PreviewTag(
     text: String,
@@ -608,8 +558,6 @@ private fun PreviewTag(
         )
     }
 }
-
-// ==================== 设置分组和行 ====================
 
 @Composable
 private fun SettingGroupSection(
@@ -758,8 +706,6 @@ private fun SettingItemRow(
     }
 }
 
-// ==================== 对话框 ====================
-
 @Composable
 private fun SpeechRateDialog(
     currentRate: Float,
@@ -819,7 +765,6 @@ private fun FontSizeDialog(
     onSizeSelected: (Int) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    // 每个 size 对应：显示标签、示例文字
     data class SizeOption(val size: Int, val label: String, val sample: String)
 
     val options = listOf(
@@ -869,7 +814,6 @@ private fun FontSizeDialog(
                     ) {
                         RadioButton(selected = isSelected, onClick = null)
                         Spacer(modifier = Modifier.width(8.dp))
-                        // 标签字号固定，不随选项变化
                         Text(
                             text = opt.label,
                             fontSize = 14.sp,
@@ -877,7 +821,6 @@ private fun FontSizeDialog(
                             color = if (isSelected) Color(0xFF4A6FA5) else Color(0xFF333333),
                             modifier = Modifier.weight(1f),
                         )
-                        // 右侧用实际字号渲染单个汉字作为直观预览
                         Text(
                             text = opt.sample,
                             fontSize = opt.size.sp,

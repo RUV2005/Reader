@@ -1,5 +1,6 @@
 package com.danmo.reader
 
+import android.content.res.Configuration
 import android.net.Uri
 import android.os.Bundle
 import android.util.Log
@@ -10,6 +11,8 @@ import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -18,6 +21,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
@@ -68,8 +74,21 @@ sealed class Screen {
     data class PdfReader(val doc: PdfDocument) : Screen()
     data class OcrResult(val text: String, val blocks: List<String>) : Screen()
     data object CameraCapture : Screen()
-    data object Settings : Screen()
 }
+
+/**
+ * 底部/侧边导航项的数据结构
+ */
+data class BottomNavItemData(
+    val label: String,
+    val iconRes: Int
+)
+
+val bottomNavItems = listOf(
+    BottomNavItemData("文件", R.drawable.ic_files),
+    BottomNavItemData("首页", R.drawable.ic_home),
+    BottomNavItemData("设置", R.drawable.ic_settings_nav)
+)
 
 /**
  * 应用的主 Activity，负责：
@@ -77,6 +96,7 @@ sealed class Screen {
  * 2. 处理文件选择与解析流程
  * 3. 管理应用内的导航状态（Tab 切换与阅读器栈）
  */
+@OptIn(ExperimentalMaterial3Api::class)
 class MainActivity : AppCompatActivity() {
 
     // 文件选择器的启动器，用于处理 SAF (Storage Access Framework) 回调
@@ -141,6 +161,9 @@ class MainActivity : AppCompatActivity() {
         }
 
         setContent {
+            val configuration = LocalConfiguration.current
+            val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+            
             // 实时订阅最近文件列表的变化
             val recentFiles by recentFileRepository.getRecentFiles()
                 .collectAsState(initial = emptyList())
@@ -152,130 +175,232 @@ class MainActivity : AppCompatActivity() {
                 ) {
                     val topScreen = screenStack.lastOrNull()
 
-                    when {
-                        // 1. 如果屏幕栈不为空，渲染最顶层的阅读器页面
-                        topScreen != null -> when (topScreen) {
-                            is Screen.WordReader -> WordReaderScreen(
-                                document = topScreen.doc,
-                                onBackClick = { popScreen() }
-                            ) {
-                                pushScreen(Screen.Settings) // 进入设置
-                            }
-                            is Screen.ExcelReader -> ExcelReaderScreen(
-                                document = topScreen.doc,
-                                onBackClick = { popScreen() }
-                            ) {
-                                pushScreen(Screen.Settings)
-                            }
-                            is Screen.PptReader -> PptReaderScreen(
-                                document = topScreen.doc,
-                                onBackClick = { popScreen() }
-                            ) {
-                                pushScreen(Screen.Settings)
-                            }
-                            is Screen.PdfReader -> PdfReaderScreen(
-                                document = topScreen.doc,
-                                onBackClick = { popScreen() }
-                            ) {
-                                pushScreen(Screen.Settings)
-                            }
-                            is Screen.OcrResult -> OcrResultScreen(
-                                text = topScreen.text,
-                                blocks = topScreen.blocks,
-                                onBackClick = { popScreen() }
-                            )
-                            is Screen.CameraCapture -> CameraCaptureScreen(
-                                onImageCaptured = { uri ->
-                                    popScreen() // 关闭相机
-                                    handleOcrImage(uri) // 处理识别
-                                },
-                                onGalleryClick = {
-                                    imagePickerLauncher.launch("image/*")
-                                },
-                                onBackClick = { popScreen() }
-                            )
-                            is Screen.Settings -> SettingsScreen(
-                                onBackClick = { popScreen() }
-                            )
-                        }
-
-                        // 2. 首页 Tab：包含快捷入口和最近列表
-                        currentTab == MainTab.HOME -> HomeScreen(
-                            onNavigateToShelf = { currentTab = MainTab.FILES },
-                            onNavigateToProfile = { currentTab = MainTab.SETTINGS },
-                            onSettingsClick = { currentTab = MainTab.SETTINGS },
-                            onScanClick = {
-                                cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
-                            },
-                            onFunctionCardClick = { title ->
-                                when {
-                                    title.contains("Word") -> openDocumentPicker(DocumentType.WORD)
-                                    title.contains("Excel") -> openDocumentPicker(DocumentType.EXCEL)
-                                    title.contains("PPT") -> openDocumentPicker(DocumentType.POWERPOINT)
-                                    title.contains("PDF") -> openDocumentPicker(DocumentType.PDF)
-                                }
-                            },
-                            onRecentFileClick = { file ->
-                                Log.d(TAG, "点击最近文件: ${file.name}, type=${file.type}, uri=${file.uri}")
-                                val uri = file.uri.toUri()
-                                // 检查历史权限是否依然有效
-                                if (UriPermissionManager.hasUriPermission(this, uri)) {
-                                    val docType = when (file.type) {
-                                        "word" -> DocumentType.WORD
-                                        "excel" -> DocumentType.EXCEL
-                                        "ppt" -> DocumentType.POWERPOINT
-                                        "pdf" -> DocumentType.PDF
-                                        else -> DocumentType.UNKNOWN
+                    Scaffold(
+                        topBar = {
+                            if (topScreen == null) {
+                                when (currentTab) {
+                                    MainTab.FILES -> {
+                                        TopAppBar(
+                                            title = { Text("文件管理", fontSize = 20.sp, fontWeight = FontWeight.Bold) },
+                                            navigationIcon = {
+                                                IconButton(onClick = { currentTab = MainTab.HOME }) {
+                                                    Icon(painterResource(id = R.drawable.ic_back), contentDescription = "返回")
+                                                }
+                                            },
+                                            colors = TopAppBarDefaults.topAppBarColors(
+                                                containerColor = Color(0xFF4A6FA5),
+                                                titleContentColor = Color.White,
+                                                navigationIconContentColor = Color.White
+                                            )
+                                        )
                                     }
-                                    handleSelectedDocument(uri, docType, file.name)
-                                } else {
-                                    parseError = "文件访问权限已失效，请重新选择文件"
+                                    MainTab.SETTINGS -> {
+                                        TopAppBar(
+                                            title = { Text("设置", fontSize = 20.sp, fontWeight = FontWeight.Bold) },
+                                            navigationIcon = {
+                                                IconButton(onClick = { currentTab = MainTab.HOME }) {
+                                                    Icon(painterResource(id = R.drawable.ic_back), contentDescription = "返回")
+                                                }
+                                            },
+                                            colors = TopAppBarDefaults.topAppBarColors(
+                                                containerColor = Color(0xFF4A6FA5),
+                                                titleContentColor = Color.White,
+                                                navigationIconContentColor = Color.White
+                                            )
+                                        )
+                                    }
+                                    MainTab.HOME -> { /* 首页自带 Header，不显示 TopAppBar */ }
                                 }
-                            },
-                            recentFiles = recentFiles,
-                        )
-
-                        // 3. 文件列表 Tab：查看所有真实打开过的文件记录
-                        currentTab == MainTab.FILES -> FileListScreen(
-                            files = recentFiles.map { file ->
-                                DocumentFile(
-                                    id = file.uri,
-                                    name = file.name,
-                                    type = when (file.type) {
-                                        "word" -> FileType.WORD
-                                        "excel" -> FileType.EXCEL
-                                        "ppt" -> FileType.PPT
-                                        "pdf" -> FileType.PDF
-                                        else -> FileType.WORD
+                            }
+                        },
+                        bottomBar = {
+                            if (!isLandscape && topScreen == null) {
+                                BottomNavigationBar(
+                                    selectedTab = when (currentTab) {
+                                        MainTab.FILES -> 0
+                                        MainTab.HOME -> 1
+                                        MainTab.SETTINGS -> 2
                                     },
-                                    size = "",
-                                    modifiedTime = file.openTimeDisplay,
-                                    path = file.uri
-                                )
-                            },
-                            onFileClick = { file ->
-                                Log.d(TAG, "从文件列表打开: ${file.name}, uri=${file.id}")
-                                val uri = file.id.toUri()
-                                if (UriPermissionManager.hasUriPermission(this@MainActivity, uri)) {
-                                    val docType = when (file.type) {
-                                        FileType.WORD -> DocumentType.WORD
-                                        FileType.EXCEL -> DocumentType.EXCEL
-                                        FileType.PPT -> DocumentType.POWERPOINT
-                                        FileType.PDF -> DocumentType.PDF
+                                    onTabSelected = { index: Int ->
+                                        screenStack = emptyList() // 切换 Tab 时重置阅读器栈
+                                        currentTab = when (index) {
+                                            0 -> MainTab.FILES
+                                            1 -> MainTab.HOME
+                                            2 -> MainTab.SETTINGS
+                                            else -> MainTab.HOME
+                                        }
                                     }
-                                    handleSelectedDocument(uri, docType, file.name)
-                                } else {
-                                    parseError = "文件访问权限已失效，请重新选择文件"
+                                )
+                            }
+                        },
+                        floatingActionButton = {
+                            if (topScreen == null && !isLandscape) {
+                                when (currentTab) {
+                                    MainTab.HOME -> {
+                                        com.danmo.reader.ScanFloatingButton {
+                                            cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
+                                        }
+                                    }
+                                    MainTab.FILES -> {
+                                        ExtendedFloatingActionButton(
+                                            onClick = { openDocumentPicker() },
+                                            containerColor = Color(0xFF4A6FA5),
+                                            icon = { Icon(painterResource(id = R.drawable.ic_add), contentDescription = null, tint = Color.White) },
+                                            text = { Text("打开新文件", color = Color.White) }
+                                        )
+                                    }
+                                    MainTab.SETTINGS -> {}
                                 }
-                            },
-                            onBackClick = { currentTab = MainTab.HOME },
-                            onPickFile = { openDocumentPicker() },
-                        )
+                            }
+                        },
+                        floatingActionButtonPosition = if (currentTab == MainTab.HOME) FabPosition.Center else FabPosition.End
+                    ) { paddingValues ->
+                        Row(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
+                            if (isLandscape && topScreen == null) {
+                                GlobalNavigationRail(
+                                    selectedTab = when (currentTab) {
+                                        MainTab.FILES -> 0
+                                        MainTab.HOME -> 1
+                                        MainTab.SETTINGS -> 2
+                                    },
+                                    onTabSelected = { index: Int ->
+                                        screenStack = emptyList()
+                                        currentTab = when (index) {
+                                            0 -> MainTab.FILES
+                                            1 -> MainTab.HOME
+                                            2 -> MainTab.SETTINGS
+                                            else -> MainTab.HOME
+                                        }
+                                    }
+                                )
+                            }
 
-                        // 4. 全局设置 Tab
-                        currentTab == MainTab.SETTINGS -> SettingsScreen(
-                            onBackClick = { currentTab = MainTab.HOME },
-                        )
+                            Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
+                                when {
+                                    // 1. 如果屏幕栈不为空，渲染最顶层的阅读器页面
+                                    topScreen != null -> when (topScreen) {
+                                        is Screen.WordReader -> WordReaderScreen(
+                                            document = topScreen.doc,
+                                            onBackClick = { popScreen() }
+                                        ) {
+                                            currentTab = MainTab.SETTINGS
+                                            screenStack = emptyList()
+                                        }
+                                        is Screen.ExcelReader -> ExcelReaderScreen(
+                                            document = topScreen.doc,
+                                            onBackClick = { popScreen() }
+                                        ) {
+                                            currentTab = MainTab.SETTINGS
+                                            screenStack = emptyList()
+                                        }
+                                        is Screen.PptReader -> PptReaderScreen(
+                                            document = topScreen.doc,
+                                            onBackClick = { popScreen() }
+                                        ) {
+                                            currentTab = MainTab.SETTINGS
+                                            screenStack = emptyList()
+                                        }
+                                        is Screen.PdfReader -> PdfReaderScreen(
+                                            document = topScreen.doc,
+                                            onBackClick = { popScreen() }
+                                        ) {
+                                            currentTab = MainTab.SETTINGS
+                                            screenStack = emptyList()
+                                        }
+                                        is Screen.OcrResult -> OcrResultScreen(
+                                            text = topScreen.text,
+                                            blocks = topScreen.blocks,
+                                            onBackClick = { popScreen() }
+                                        )
+                                        is Screen.CameraCapture -> CameraCaptureScreen(
+                                            onImageCaptured = { uri ->
+                                                popScreen() // 关闭相机
+                                                handleOcrImage(uri) // 处理识别
+                                            },
+                                            onGalleryClick = {
+                                                imagePickerLauncher.launch("image/*")
+                                            },
+                                            onBackClick = { popScreen() }
+                                        )
+                                    }
+
+                                    // 2. 首页 Tab
+                                    currentTab == MainTab.HOME -> HomeScreen(
+                                        onNavigateToShelf = { currentTab = MainTab.FILES },
+                                        onNavigateToProfile = { currentTab = MainTab.SETTINGS },
+                                        onSettingsClick = { currentTab = MainTab.SETTINGS },
+                                        onViewAllClick = { currentTab = MainTab.FILES },
+                                        onScanClick = {
+                                            cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
+                                        },
+                                        onFunctionCardClick = { title ->
+                                            when {
+                                                title.contains("Word") -> openDocumentPicker(DocumentType.WORD)
+                                                title.contains("Excel") -> openDocumentPicker(DocumentType.EXCEL)
+                                                title.contains("PPT") -> openDocumentPicker(DocumentType.POWERPOINT)
+                                                title.contains("PDF") -> openDocumentPicker(DocumentType.PDF)
+                                            }
+                                        },
+                                        onRecentFileClick = { file ->
+                                            Log.d(TAG, "点击最近文件: ${file.name}, type=${file.type}, uri=${file.uri}")
+                                            val uri = file.uri.toUri()
+                                            // 检查历史权限是否依然有效
+                                            if (UriPermissionManager.hasUriPermission(this@MainActivity, uri)) {
+                                                val docType = when (file.type) {
+                                                    "word" -> DocumentType.WORD
+                                                    "excel" -> DocumentType.EXCEL
+                                                    "ppt" -> DocumentType.POWERPOINT
+                                                    "pdf" -> DocumentType.PDF
+                                                    else -> DocumentType.UNKNOWN
+                                                }
+                                                handleSelectedDocument(uri, docType, file.name)
+                                            } else {
+                                                parseError = "文件访问权限已失效，请重新选择文件"
+                                            }
+                                        },
+                                        recentFiles = recentFiles,
+                                    )
+
+                                    // 3. 文件列表 Tab
+                                    currentTab == MainTab.FILES -> FileListScreen(
+                                        files = recentFiles.map { file ->
+                                            DocumentFile(
+                                                id = file.uri,
+                                                name = file.name,
+                                                type = when (file.type) {
+                                                    "word" -> FileType.WORD
+                                                    "excel" -> FileType.EXCEL
+                                                    "ppt" -> FileType.PPT
+                                                    "pdf" -> FileType.PDF
+                                                    else -> FileType.WORD
+                                                },
+                                                size = "",
+                                                modifiedTime = file.openTimeDisplay,
+                                                path = file.uri
+                                            )
+                                        },
+                                        onFileClick = { file ->
+                                            Log.d(TAG, "从文件列表打开: ${file.name}, uri=${file.id}")
+                                            val uri = file.id.toUri()
+                                            if (UriPermissionManager.hasUriPermission(this@MainActivity, uri)) {
+                                                val docType = when (file.type) {
+                                                    FileType.WORD -> DocumentType.WORD
+                                                    FileType.EXCEL -> DocumentType.EXCEL
+                                                    FileType.PPT -> DocumentType.POWERPOINT
+                                                    FileType.PDF -> DocumentType.PDF
+                                                }
+                                                handleSelectedDocument(uri, docType, file.name)
+                                            } else {
+                                                parseError = "文件访问权限已失效，请重新选择文件"
+                                            }
+                                        }
+                                    )
+
+                                    // 4. 全局设置 Tab
+                                    currentTab == MainTab.SETTINGS -> SettingsScreen()
+                                }
+                            }
+                        }
                     }
 
                     // 加载中遮罩
@@ -535,6 +660,96 @@ private fun LoadingOverlay() {
                 Text("解析中...", color = Color.White, fontSize = 14.sp)
             }
         }
+    }
+}
+
+/**
+ * 全局底部导航栏
+ */
+@Composable
+private fun BottomNavigationBar(
+    selectedTab: Int,
+    onTabSelected: (Int) -> Unit
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = Color.White,
+        shadowElevation = 8.dp
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            bottomNavItems.forEachIndexed { index, item ->
+                val isSelected = selectedTab == index
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = { onTabSelected(index) }
+                        )
+                        .padding(vertical = 4.dp)
+                ) {
+                    Icon(
+                        painter = painterResource(id = item.iconRes),
+                        contentDescription = item.label,
+                        modifier = Modifier.size(24.dp),
+                        tint = if (isSelected) Color(0xFF4A6FA5) else Color(0xFF999999)
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = item.label,
+                        fontSize = 11.sp,
+                        color = if (isSelected) Color(0xFF4A6FA5) else Color(0xFF999999)
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 全局横屏侧边导航栏
+ */
+@Composable
+private fun GlobalNavigationRail(
+    selectedTab: Int,
+    onTabSelected: (Int) -> Unit
+) {
+    NavigationRail(
+        containerColor = Color.White,
+        modifier = Modifier.fillMaxHeight()
+    ) {
+        Spacer(modifier = Modifier.weight(1f))
+        bottomNavItems.forEachIndexed { index, item ->
+            val isSelected = selectedTab == index
+            NavigationRailItem(
+                selected = isSelected,
+                onClick = { onTabSelected(index) },
+                icon = {
+                    Icon(
+                        painter = painterResource(id = item.iconRes),
+                        contentDescription = item.label,
+                        modifier = Modifier.size(24.dp)
+                    )
+                },
+                label = { Text(item.label, fontSize = 11.sp) },
+                colors = NavigationRailItemDefaults.colors(
+                    selectedIconColor = Color(0xFF4A6FA5),
+                    selectedTextColor = Color(0xFF4A6FA5),
+                    unselectedIconColor = Color(0xFF999999),
+                    unselectedTextColor = Color(0xFF999999),
+                    indicatorColor = Color(0xFF4A6FA5).copy(alpha = 0.1f)
+                )
+            )
+        }
+        Spacer(modifier = Modifier.weight(1f))
     }
 }
 
