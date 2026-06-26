@@ -27,7 +27,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.lifecycleScope
+import com.danmo.reader.common.utils.HapticUtils
 import com.danmo.reader.data.local.UriPermissionManager
 import com.danmo.reader.data.repository.RecentFileRepository
 import com.danmo.reader.excel.ExcelDocument
@@ -114,6 +116,7 @@ class MainActivity : AppCompatActivity() {
     private var isLoading by mutableStateOf(value = false)         // 是否显示全屏加载中
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        installSplashScreen() // 必须在 super.onCreate 之前调用
         super.onCreate(savedInstanceState)
         enableEdgeToEdge() // 开启全屏沉浸式体验
 
@@ -222,6 +225,7 @@ class MainActivity : AppCompatActivity() {
                                         MainTab.SETTINGS -> 2
                                     },
                                     onTabSelected = { index: Int ->
+                                        HapticUtils.triggerTick(this@MainActivity)
                                         screenStack = emptyList() // 切换 Tab 时重置阅读器栈
                                         currentTab = when (index) {
                                             0 -> MainTab.FILES
@@ -238,6 +242,7 @@ class MainActivity : AppCompatActivity() {
                                 when (currentTab) {
                                     MainTab.HOME -> {
                                         com.danmo.reader.ScanFloatingButton {
+                                            HapticUtils.triggerImpact(this@MainActivity)
                                             cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
                                         }
                                     }
@@ -264,6 +269,7 @@ class MainActivity : AppCompatActivity() {
                                         MainTab.SETTINGS -> 2
                                     },
                                     onTabSelected = { index: Int ->
+                                        HapticUtils.triggerTick(this@MainActivity)
                                         screenStack = emptyList()
                                         currentTab = when (index) {
                                             0 -> MainTab.FILES
@@ -283,6 +289,7 @@ class MainActivity : AppCompatActivity() {
                                             document = topScreen.doc,
                                             onBackClick = { popScreen() }
                                         ) {
+                                            HapticUtils.triggerTick(this@MainActivity)
                                             currentTab = MainTab.SETTINGS
                                             screenStack = emptyList()
                                         }
@@ -290,6 +297,7 @@ class MainActivity : AppCompatActivity() {
                                             document = topScreen.doc,
                                             onBackClick = { popScreen() }
                                         ) {
+                                            HapticUtils.triggerTick(this@MainActivity)
                                             currentTab = MainTab.SETTINGS
                                             screenStack = emptyList()
                                         }
@@ -297,6 +305,7 @@ class MainActivity : AppCompatActivity() {
                                             document = topScreen.doc,
                                             onBackClick = { popScreen() }
                                         ) {
+                                            HapticUtils.triggerTick(this@MainActivity)
                                             currentTab = MainTab.SETTINGS
                                             screenStack = emptyList()
                                         }
@@ -304,6 +313,7 @@ class MainActivity : AppCompatActivity() {
                                             document = topScreen.doc,
                                             onBackClick = { popScreen() }
                                         ) {
+                                            HapticUtils.triggerTick(this@MainActivity)
                                             currentTab = MainTab.SETTINGS
                                             screenStack = emptyList()
                                         }
@@ -314,6 +324,7 @@ class MainActivity : AppCompatActivity() {
                                         )
                                         is Screen.CameraCapture -> CameraCaptureScreen(
                                             onImageCaptured = { uri ->
+                                                HapticUtils.triggerSuccess(this@MainActivity)
                                                 popScreen() // 关闭相机
                                                 handleOcrImage(uri) // 处理识别
                                             },
@@ -326,14 +337,24 @@ class MainActivity : AppCompatActivity() {
 
                                     // 2. 首页 Tab
                                     currentTab == MainTab.HOME -> HomeScreen(
-                                        onNavigateToShelf = { currentTab = MainTab.FILES },
-                                        onNavigateToProfile = { currentTab = MainTab.SETTINGS },
+                                        onNavigateToShelf = { 
+                                            HapticUtils.triggerTick(this@MainActivity)
+                                            currentTab = MainTab.FILES 
+                                        },
+                                        onNavigateToProfile = { 
+                                            HapticUtils.triggerTick(this@MainActivity)
+                                            currentTab = MainTab.SETTINGS 
+                                        },
                                         onSettingsClick = { currentTab = MainTab.SETTINGS },
-                                        onViewAllClick = { currentTab = MainTab.FILES },
+                                        onViewAllClick = { 
+                                            HapticUtils.triggerTick(this@MainActivity)
+                                            currentTab = MainTab.FILES 
+                                        },
                                         onScanClick = {
                                             cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
                                         },
                                         onFunctionCardClick = { title ->
+                                            HapticUtils.triggerTick(this@MainActivity)
                                             when {
                                                 title.contains("Word") -> openDocumentPicker(DocumentType.WORD)
                                                 title.contains("Excel") -> openDocumentPicker(DocumentType.EXCEL)
@@ -342,6 +363,7 @@ class MainActivity : AppCompatActivity() {
                                             }
                                         },
                                         onRecentFileClick = { file ->
+                                            HapticUtils.triggerTick(this@MainActivity)
                                             Log.d(TAG, "点击最近文件: ${file.name}, type=${file.type}, uri=${file.uri}")
                                             val uri = file.uri.toUri()
                                             // 检查历史权限是否依然有效

@@ -9,6 +9,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
+import java.io.File
+import java.util.Locale
 
 data class SettingsUiState(
     val ttsEnabled: Boolean = true,
@@ -18,6 +20,7 @@ data class SettingsUiState(
     val highContrast: Boolean = false,
     val language: String = "zh",
     val theme: String = "system",
+    val cacheSize: String = "0.00 MB",
 )
 
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {
@@ -27,6 +30,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
 
     init {
+        updateCacheSize()
         viewModelScope.launch {
             combine(
                 repository.ttsEnabled,
@@ -45,6 +49,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                     highContrast = values[4] as Boolean,
                     language = values[5] as String,
                     theme = values[6] as String,
+                    cacheSize = _uiState.value.cacheSize // 保持当前缓存大小状态
                 )
             }.collect { state ->
                 _uiState.value = state
@@ -78,5 +83,43 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun setTheme(theme: String) = viewModelScope.launch {
         repository.setTheme(theme)
+    }
+
+    /**
+     * 计算并更新当前缓存大小
+     */
+    fun updateCacheSize() {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            val cacheDir = getApplication<Application>().cacheDir
+            val size = getFolderSize(cacheDir)
+            _uiState.value = _uiState.value.copy(cacheSize = formatSize(size))
+        }
+    }
+
+    /**
+     * 清理应用缓存
+     */
+    fun clearCache() {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            val cacheDir = getApplication<Application>().cacheDir
+            cacheDir.listFiles()?.forEach { it.deleteRecursively() }
+            updateCacheSize()
+        }
+    }
+
+    private fun getFolderSize(folder: File): Long {
+        var size: Long = 0
+        val files = folder.listFiles()
+        if (files != null) {
+            for (file in files) {
+                size += if (file.isFile) file.length() else getFolderSize(file)
+            }
+        }
+        return size
+    }
+
+    private fun formatSize(size: Long): String {
+        val mb = size.toDouble() / (1024 * 1024)
+        return String.format(Locale.CHINA, "%.2f MB", mb)
     }
 }

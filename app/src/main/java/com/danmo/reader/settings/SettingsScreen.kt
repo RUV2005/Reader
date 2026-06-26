@@ -63,6 +63,12 @@ fun SettingsScreen(
     var showFontSizeDialog    by remember { mutableStateOf(false) }
     var showLanguageDialog    by remember { mutableStateOf(false) }
     var showThemeDialog       by remember { mutableStateOf(false) }
+    var showAboutDialog       by remember { mutableStateOf(false) }
+    var showStorageDialog     by remember { mutableStateOf(false) }
+    var showGestureDialog     by remember { mutableStateOf(false) }
+    var showAccessibilityDialog by remember { mutableStateOf(false) }
+    var showFeedbackDialog    by remember { mutableStateOf(false) }
+    var showPrivacyDialog     by remember { mutableStateOf(false) }
 
     val settingGroups = remember(uiState) {
         listOf(
@@ -117,7 +123,7 @@ fun SettingsScreen(
                     SettingItem(
                         id = "gesture",
                         title = "手势控制",
-                        subtitle = "配置滑动和点击手势",
+                        subtitle = "查看滑动和点击手势说明",
                         iconRes = R.drawable.ic_gesture,
                         iconColor = Color(0xFFD24726),
                         type = SettingType.NAVIGATE,
@@ -125,7 +131,7 @@ fun SettingsScreen(
                     SettingItem(
                         id = "accessibility",
                         title = "TalkBack 优化",
-                        subtitle = "优化屏幕阅读器体验",
+                        subtitle = "了解我们如何优化读屏体验",
                         iconRes = R.drawable.ic_accessibility,
                         iconColor = Color(0xFF4A6FA5),
                         type = SettingType.NAVIGATE,
@@ -138,7 +144,7 @@ fun SettingsScreen(
                     SettingItem(
                         id = "storage",
                         title = "存储管理",
-                        subtitle = "清理缓存、管理下载文件",
+                        subtitle = "当前缓存: ${uiState.cacheSize}",
                         iconRes = R.drawable.ic_storage,
                         iconColor = Color(0xFF6B8CBB),
                         type = SettingType.NAVIGATE,
@@ -176,15 +182,15 @@ fun SettingsScreen(
                     SettingItem(
                         id = "about",
                         title = "关于应用",
-                        subtitle = "版本 1.0.0",
+                        subtitle = "版本 1.0.0 (Stable)",
                         iconRes = R.drawable.ic_info,
                         iconColor = Color(0xFF999999),
                         type = SettingType.NAVIGATE,
                     ),
                     SettingItem(
                         id = "feedback",
-                        title = "反馈建议",
-                        subtitle = "帮助我们改进产品",
+                        title = "意见反馈",
+                        subtitle = "将您的建议告诉我们",
                         iconRes = R.drawable.ic_feedback,
                         iconColor = Color(0xFF999999),
                         type = SettingType.NAVIGATE,
@@ -192,6 +198,7 @@ fun SettingsScreen(
                     SettingItem(
                         id = "privacy",
                         title = "隐私政策",
+                        subtitle = "了解我们如何保护您的数据",
                         iconRes = R.drawable.ic_privacy,
                         iconColor = Color(0xFF999999),
                         type = SettingType.NAVIGATE,
@@ -242,12 +249,12 @@ fun SettingsScreen(
                             "font_size"     -> showFontSizeDialog = true
                             "language"      -> showLanguageDialog = true
                             "theme"         -> showThemeDialog = true
-                            "about"         -> {}
-                            "accessibility" -> {}
-                            "gesture"       -> {}
-                            "storage"       -> {}
-                            "feedback"      -> {}
-                            "privacy"       -> {}
+                            "storage"       -> showStorageDialog = true
+                            "gesture"       -> showGestureDialog = true
+                            "accessibility" -> showAccessibilityDialog = true
+                            "about"         -> showAboutDialog = true
+                            "feedback"      -> showFeedbackDialog = true
+                            "privacy"       -> showPrivacyDialog = true
                         }
                     },
                     toggleStates = mapOf(
@@ -303,6 +310,193 @@ fun SettingsScreen(
             onDismiss = { showThemeDialog = false },
         )
     }
+    if (showAboutDialog) {
+        AboutDialog(onDismiss = { showAboutDialog = false })
+    }
+    if (showStorageDialog) {
+        StorageDialog(
+            cacheSize = uiState.cacheSize,
+            onClearCache = { viewModel.clearCache() },
+            onDismiss = { showStorageDialog = false }
+        )
+    }
+    if (showGestureDialog) {
+        GestureDialog(onDismiss = { showGestureDialog = false })
+    }
+    if (showAccessibilityDialog) {
+        AccessibilityDialog(onDismiss = { showAccessibilityDialog = false })
+    }
+    if (showFeedbackDialog) {
+        FeedbackDialog(onDismiss = { showFeedbackDialog = false })
+    }
+    if (showPrivacyDialog) {
+        PrivacyDialog(onDismiss = { showPrivacyDialog = false })
+    }
+}
+
+// ==================== 存储管理对话框 ====================
+
+@Composable
+private fun StorageDialog(
+    cacheSize: String,
+    onClearCache: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("存储管理", fontWeight = FontWeight.Bold) },
+        text = {
+            Column {
+                Text("当前应用占用的缓存空间为：", fontSize = 14.sp)
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = cacheSize,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF4A6FA5)
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    "缓存主要包含文档预览图和 OCR 临时文件。清理缓存不会删除您的本地文档或阅读历史。",
+                    fontSize = 12.sp,
+                    color = Color.Gray
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onClearCache(); onDismiss() },
+                colors = ButtonDefaults.textButtonColors(contentColor = Color.Red)
+            ) {
+                Text("清理缓存")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("关闭")
+            }
+        }
+    )
+}
+
+// ==================== 手势控制说明 ====================
+
+@Composable
+private fun GestureDialog(onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("手势控制指南", fontWeight = FontWeight.Bold) },
+        text = {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                GestureItem("左右滑动", "在阅读器中切换上一个/下一个段落。")
+                GestureItem("双击屏幕", "在阅读器中立即开始朗读下一段。")
+                GestureItem("长按卡片", "在首页可触发文档的更多管理操作（即将上线）。")
+                GestureItem("摇一摇", "在任何页面快速唤起语音助手（开发中）。")
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    "提示：所有手势均已适配系统 TalkBack 读屏操作，建议开启 TalkBack 获取最佳无障碍体验。",
+                    fontSize = 12.sp,
+                    color = Color(0xFF217346)
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("知道了") }
+        }
+    )
+}
+
+@Composable
+private fun GestureItem(title: String, desc: String) {
+    Column(modifier = Modifier.padding(vertical = 8.dp)) {
+        Text(text = title, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color(0xFF4A6FA5))
+        Text(text = desc, fontSize = 13.sp, color = Color.DarkGray)
+    }
+}
+
+// ==================== 无障碍优化说明 ====================
+
+@Composable
+private fun AccessibilityDialog(onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("TalkBack 无障碍优化", fontWeight = FontWeight.Bold) },
+        text = {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                Text(
+                    "我们为读屏用户深度定制了以下体验：",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                BulletPoint("语义化标签：为所有图标和操作按钮添加了精准的中文描述。")
+                BulletPoint("焦点流优化：确保读屏器焦点按照文档逻辑顺序移动。")
+                BulletPoint("高对比度：支持黑底黄字模式，辅助弱视用户识别。")
+                BulletPoint("实时状态播报：朗读进度、解析成功等状态实时通过语音反馈。")
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("确定") }
+        }
+    )
+}
+
+@Composable
+private fun BulletPoint(text: String) {
+    Row(modifier = Modifier.padding(vertical = 6.dp)) {
+        Text("• ", fontWeight = FontWeight.Bold)
+        Text(text = text, fontSize = 13.sp)
+    }
+}
+
+// ==================== 意见反馈 ====================
+
+@Composable
+private fun FeedbackDialog(onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("意见反馈", fontWeight = FontWeight.Bold) },
+        text = {
+            Column {
+                Text("感谢您使用智能阅读器！如果您在使用过程中遇到任何问题或有改进建议，请通过以下方式联系我们：", fontSize = 14.sp)
+                Spacer(modifier = Modifier.height(16.dp))
+                Text("客服邮箱：support@danmo-reader.com", fontWeight = FontWeight.Bold, color = Color(0xFF4A6FA5))
+                Text("反馈群组：微信号 ReaderHelper", fontWeight = FontWeight.Bold, color = Color(0xFF4A6FA5))
+                Spacer(modifier = Modifier.height(16.dp))
+                Text("您的每一个反馈都能帮助我们做得更好。", fontSize = 12.sp, color = Color.Gray)
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("确定") }
+        }
+    )
+}
+
+// ==================== 隐私政策 ====================
+
+@Composable
+private fun PrivacyDialog(onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("隐私政策摘要", fontWeight = FontWeight.Bold) },
+        text = {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                Text("智能阅读器高度重视您的个人隐私：", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    "1. 数据不出本地：所有的文档解析和 OCR 识别均在您的设备本地完成，不会上传到任何服务器。\n\n" +
+                    "2. 权限最小化：应用仅申请相机（用于 OCR）和存储（用于读文档）所必须的权限。\n\n" +
+                    "3. 历史记录管理：您的阅读历史仅保存在手机 DataStore 中，您可以随时通过清理应用数据进行彻底清除。\n\n" +
+                    "4. 无第三方共享：我们绝不会将您的任何数据共享给第三方广告商或分析平台。",
+                    fontSize = 13.sp,
+                    lineHeight = 18.sp
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("同意并接受") }
+        }
+    )
 }
 
 // ==================== 吸顶预览区 ====================
@@ -881,6 +1075,41 @@ private fun LanguageDialog(
             }
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text("取消") } },
+    )
+}
+
+@Composable
+private fun AboutDialog(onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("关于智能阅读器", fontWeight = FontWeight.Bold) },
+        text = {
+            Column {
+                Text(
+                    text = "版本：1.0.0 (Stable)",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF4A6FA5)
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = "智能阅读器是一款专为视障和低视力用户打造的全能文档辅助工具。支持 Word, Excel, PPT, PDF 以及 OCR 拍照识字，旨在用技术消除阅读障碍。",
+                    fontSize = 14.sp,
+                    lineHeight = 20.sp
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = "© 2024 智能阅读器团队",
+                    fontSize = 12.sp,
+                    color = Color.Gray
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("确定")
+            }
+        }
     )
 }
 
