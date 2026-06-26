@@ -17,6 +17,9 @@ data class RecentFile(
 
 class RecentFileRepository(context: android.content.Context) {
     private val dao = AppDatabase.getDatabase(context).recentFileDao()
+    private val settingsRepository = SettingsRepository(context)
+
+    fun getSettingsRepository() = settingsRepository
 
     fun getRecentFiles(): Flow<List<RecentFile>> = dao.getAll().map { entities ->
         entities.map { it.toRecentFile() }

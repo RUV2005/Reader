@@ -22,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -30,6 +31,7 @@ import androidx.core.net.toUri
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.lifecycleScope
 import com.danmo.reader.common.utils.HapticUtils
+import com.danmo.reader.common.utils.LocaleUtils
 import com.danmo.reader.data.local.UriPermissionManager
 import com.danmo.reader.data.repository.RecentFileRepository
 import com.danmo.reader.excel.ExcelDocument
@@ -167,311 +169,302 @@ class MainActivity : AppCompatActivity() {
             val configuration = LocalConfiguration.current
             val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
             
-            // 实时订阅最近文件列表的变化
+            // 订阅全局设置：最近文件、语言和主题
             val recentFiles by recentFileRepository.getRecentFiles()
                 .collectAsState(initial = emptyList())
+            
+            val language by recentFileRepository.getSettingsRepository().language
+                .collectAsState(initial = "zh")
+            
+            val theme by recentFileRepository.getSettingsRepository().theme
+                .collectAsState(initial = "system")
 
-            ReaderTheme {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background,
-                ) {
-                    val topScreen = screenStack.lastOrNull()
+            CompositionLocalProvider(
+                androidx.compose.ui.platform.LocalContext provides LocaleUtils.applyLocale(LocalContext.current, language)
+            ) {
+                ReaderTheme(themeSetting = theme) {
+                    Surface(
+                        modifier = Modifier.fillMaxSize(),
+                        color = MaterialTheme.colorScheme.background,
+                    ) {
+                        val topScreen = screenStack.lastOrNull()
 
-                    Scaffold(
-                        topBar = {
-                            if (topScreen == null) {
-                                when (currentTab) {
-                                    MainTab.FILES -> {
-                                        TopAppBar(
-                                            title = { Text("文件管理", fontSize = 20.sp, fontWeight = FontWeight.Bold) },
-                                            navigationIcon = {
-                                                IconButton(onClick = { currentTab = MainTab.HOME }) {
-                                                    Icon(painterResource(id = R.drawable.ic_back), contentDescription = "返回")
-                                                }
-                                            },
-                                            colors = TopAppBarDefaults.topAppBarColors(
-                                                containerColor = Color(0xFF4A6FA5),
-                                                titleContentColor = Color.White,
-                                                navigationIconContentColor = Color.White
-                                            )
-                                        )
-                                    }
-                                    MainTab.SETTINGS -> {
-                                        TopAppBar(
-                                            title = { Text("设置", fontSize = 20.sp, fontWeight = FontWeight.Bold) },
-                                            navigationIcon = {
-                                                IconButton(onClick = { currentTab = MainTab.HOME }) {
-                                                    Icon(painterResource(id = R.drawable.ic_back), contentDescription = "返回")
-                                                }
-                                            },
-                                            colors = TopAppBarDefaults.topAppBarColors(
-                                                containerColor = Color(0xFF4A6FA5),
-                                                titleContentColor = Color.White,
-                                                navigationIconContentColor = Color.White
-                                            )
-                                        )
-                                    }
-                                    MainTab.HOME -> { /* 首页自带 Header，不显示 TopAppBar */ }
-                                }
-                            }
-                        },
-                        bottomBar = {
-                            if (!isLandscape && topScreen == null) {
-                                BottomNavigationBar(
-                                    selectedTab = when (currentTab) {
-                                        MainTab.FILES -> 0
-                                        MainTab.HOME -> 1
-                                        MainTab.SETTINGS -> 2
-                                    },
-                                    onTabSelected = { index: Int ->
-                                        HapticUtils.triggerTick(this@MainActivity)
-                                        screenStack = emptyList() // 切换 Tab 时重置阅读器栈
-                                        currentTab = when (index) {
-                                            0 -> MainTab.FILES
-                                            1 -> MainTab.HOME
-                                            2 -> MainTab.SETTINGS
-                                            else -> MainTab.HOME
-                                        }
-                                    }
-                                )
-                            }
-                        },
-                        floatingActionButton = {
-                            if (topScreen == null && !isLandscape) {
-                                when (currentTab) {
-                                    MainTab.HOME -> {
-                                        com.danmo.reader.ScanFloatingButton {
-                                            HapticUtils.triggerImpact(this@MainActivity)
-                                            cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
-                                        }
-                                    }
-                                    MainTab.FILES -> {
-                                        ExtendedFloatingActionButton(
-                                            onClick = { openDocumentPicker() },
-                                            containerColor = Color(0xFF4A6FA5),
-                                            icon = { Icon(painterResource(id = R.drawable.ic_add), contentDescription = null, tint = Color.White) },
-                                            text = { Text("打开新文件", color = Color.White) }
-                                        )
-                                    }
-                                    MainTab.SETTINGS -> {}
-                                }
-                            }
-                        },
-                        floatingActionButtonPosition = if (currentTab == MainTab.HOME) FabPosition.Center else FabPosition.End
-                    ) { paddingValues ->
-                        Row(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
-                            if (isLandscape && topScreen == null) {
-                                GlobalNavigationRail(
-                                    selectedTab = when (currentTab) {
-                                        MainTab.FILES -> 0
-                                        MainTab.HOME -> 1
-                                        MainTab.SETTINGS -> 2
-                                    },
-                                    onTabSelected = { index: Int ->
-                                        HapticUtils.triggerTick(this@MainActivity)
-                                        screenStack = emptyList()
-                                        currentTab = when (index) {
-                                            0 -> MainTab.FILES
-                                            1 -> MainTab.HOME
-                                            2 -> MainTab.SETTINGS
-                                            else -> MainTab.HOME
-                                        }
-                                    }
-                                )
-                            }
-
-                            Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
-                                when {
-                                    // 1. 如果屏幕栈不为空，渲染最顶层的阅读器页面
-                                    topScreen != null -> when (topScreen) {
-                                        is Screen.WordReader -> WordReaderScreen(
-                                            document = topScreen.doc,
-                                            onBackClick = { popScreen() }
-                                        ) {
-                                            HapticUtils.triggerTick(this@MainActivity)
-                                            currentTab = MainTab.SETTINGS
-                                            screenStack = emptyList()
-                                        }
-                                        is Screen.ExcelReader -> ExcelReaderScreen(
-                                            document = topScreen.doc,
-                                            onBackClick = { popScreen() }
-                                        ) {
-                                            HapticUtils.triggerTick(this@MainActivity)
-                                            currentTab = MainTab.SETTINGS
-                                            screenStack = emptyList()
-                                        }
-                                        is Screen.PptReader -> PptReaderScreen(
-                                            document = topScreen.doc,
-                                            onBackClick = { popScreen() }
-                                        ) {
-                                            HapticUtils.triggerTick(this@MainActivity)
-                                            currentTab = MainTab.SETTINGS
-                                            screenStack = emptyList()
-                                        }
-                                        is Screen.PdfReader -> PdfReaderScreen(
-                                            document = topScreen.doc,
-                                            onBackClick = { popScreen() }
-                                        ) {
-                                            HapticUtils.triggerTick(this@MainActivity)
-                                            currentTab = MainTab.SETTINGS
-                                            screenStack = emptyList()
-                                        }
-                                        is Screen.OcrResult -> OcrResultScreen(
-                                            text = topScreen.text,
-                                            blocks = topScreen.blocks,
-                                            onBackClick = { popScreen() }
-                                        )
-                                        is Screen.CameraCapture -> CameraCaptureScreen(
-                                            onImageCaptured = { uri ->
-                                                HapticUtils.triggerSuccess(this@MainActivity)
-                                                popScreen() // 关闭相机
-                                                handleOcrImage(uri) // 处理识别
-                                            },
-                                            onGalleryClick = {
-                                                imagePickerLauncher.launch("image/*")
-                                            },
-                                            onBackClick = { popScreen() }
-                                        )
-                                    }
-
-                                    // 2. 首页 Tab
-                                    currentTab == MainTab.HOME -> HomeScreen(
-                                        onNavigateToShelf = { 
-                                            HapticUtils.triggerTick(this@MainActivity)
-                                            currentTab = MainTab.FILES 
-                                        },
-                                        onNavigateToProfile = { 
-                                            HapticUtils.triggerTick(this@MainActivity)
-                                            currentTab = MainTab.SETTINGS 
-                                        },
-                                        onSettingsClick = { currentTab = MainTab.SETTINGS },
-                                        onViewAllClick = { 
-                                            HapticUtils.triggerTick(this@MainActivity)
-                                            currentTab = MainTab.FILES 
-                                        },
-                                        onScanClick = {
-                                            cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
-                                        },
-                                        onFunctionCardClick = { title ->
-                                            HapticUtils.triggerTick(this@MainActivity)
-                                            when {
-                                                title.contains("Word") -> openDocumentPicker(DocumentType.WORD)
-                                                title.contains("Excel") -> openDocumentPicker(DocumentType.EXCEL)
-                                                title.contains("PPT") -> openDocumentPicker(DocumentType.POWERPOINT)
-                                                title.contains("PDF") -> openDocumentPicker(DocumentType.PDF)
-                                            }
-                                        },
-                                        onRecentFileClick = { file ->
-                                            HapticUtils.triggerTick(this@MainActivity)
-                                            Log.d(TAG, "点击最近文件: ${file.name}, type=${file.type}, uri=${file.uri}")
-                                            val uri = file.uri.toUri()
-                                            // 检查历史权限是否依然有效
-                                            if (UriPermissionManager.hasUriPermission(this@MainActivity, uri)) {
-                                                val docType = when (file.type) {
-                                                    "word" -> DocumentType.WORD
-                                                    "excel" -> DocumentType.EXCEL
-                                                    "ppt" -> DocumentType.POWERPOINT
-                                                    "pdf" -> DocumentType.PDF
-                                                    else -> DocumentType.UNKNOWN
-                                                }
-                                                handleSelectedDocument(uri, docType, file.name)
-                                            } else {
-                                                parseError = "文件访问权限已失效，请重新选择文件"
-                                            }
-                                        },
-                                        recentFiles = recentFiles,
-                                    )
-
-                                    // 3. 文件列表 Tab
-                                    currentTab == MainTab.FILES -> FileListScreen(
-                                        files = recentFiles.map { file ->
-                                            DocumentFile(
-                                                id = file.uri,
-                                                name = file.name,
-                                                type = when (file.type) {
-                                                    "word" -> FileType.WORD
-                                                    "excel" -> FileType.EXCEL
-                                                    "ppt" -> FileType.PPT
-                                                    "pdf" -> FileType.PDF
-                                                    else -> FileType.WORD
+                        Scaffold(
+                            topBar = {
+                                if (topScreen == null) {
+                                    when (currentTab) {
+                                        MainTab.FILES -> {
+                                            TopAppBar(
+                                                title = { Text("文件管理", fontSize = 20.sp, fontWeight = FontWeight.Bold) },
+                                                navigationIcon = {
+                                                    IconButton(onClick = { currentTab = MainTab.HOME }) {
+                                                        Icon(painterResource(id = R.drawable.ic_back), contentDescription = "返回")
+                                                    }
                                                 },
-                                                size = "",
-                                                modifiedTime = file.openTimeDisplay,
-                                                path = file.uri
+                                                colors = TopAppBarDefaults.topAppBarColors(
+                                                    containerColor = Color(0xFF4A6FA5),
+                                                    titleContentColor = Color.White,
+                                                    navigationIconContentColor = Color.White
+                                                )
                                             )
+                                        }
+                                        MainTab.SETTINGS -> {
+                                            TopAppBar(
+                                                title = { Text("设置", fontSize = 20.sp, fontWeight = FontWeight.Bold) },
+                                                navigationIcon = {
+                                                    IconButton(onClick = { currentTab = MainTab.HOME }) {
+                                                        Icon(painterResource(id = R.drawable.ic_back), contentDescription = "返回")
+                                                    }
+                                                },
+                                                colors = TopAppBarDefaults.topAppBarColors(
+                                                    containerColor = Color(0xFF4A6FA5),
+                                                    titleContentColor = Color.White,
+                                                    navigationIconContentColor = Color.White
+                                                )
+                                            )
+                                        }
+                                        MainTab.HOME -> { /* 首页自带 Header */ }
+                                    }
+                                }
+                            },
+                            bottomBar = {
+                                if (!isLandscape && topScreen == null) {
+                                    BottomNavigationBar(
+                                        selectedTab = when (currentTab) {
+                                            MainTab.FILES -> 0
+                                            MainTab.HOME -> 1
+                                            MainTab.SETTINGS -> 2
                                         },
-                                        onFileClick = { file ->
-                                            Log.d(TAG, "从文件列表打开: ${file.name}, uri=${file.id}")
-                                            val uri = file.id.toUri()
-                                            if (UriPermissionManager.hasUriPermission(this@MainActivity, uri)) {
-                                                val docType = when (file.type) {
-                                                    FileType.WORD -> DocumentType.WORD
-                                                    FileType.EXCEL -> DocumentType.EXCEL
-                                                    FileType.PPT -> DocumentType.POWERPOINT
-                                                    FileType.PDF -> DocumentType.PDF
-                                                }
-                                                handleSelectedDocument(uri, docType, file.name)
-                                            } else {
-                                                parseError = "文件访问权限已失效，请重新选择文件"
+                                        onTabSelected = { index: Int ->
+                                            HapticUtils.triggerTick(this@MainActivity)
+                                            screenStack = emptyList()
+                                            currentTab = when (index) {
+                                                0 -> MainTab.FILES
+                                                1 -> MainTab.HOME
+                                                2 -> MainTab.SETTINGS
+                                                else -> MainTab.HOME
                                             }
                                         }
                                     )
+                                }
+                            },
+                            floatingActionButton = {
+                                if (topScreen == null && !isLandscape) {
+                                    when (currentTab) {
+                                        MainTab.HOME -> {
+                                            com.danmo.reader.ScanFloatingButton {
+                                                HapticUtils.triggerImpact(this@MainActivity)
+                                                cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
+                                            }
+                                        }
+                                        MainTab.FILES -> {
+                                            ExtendedFloatingActionButton(
+                                                onClick = { openDocumentPicker() },
+                                                containerColor = Color(0xFF4A6FA5),
+                                                icon = { Icon(painterResource(id = R.drawable.ic_add), contentDescription = null, tint = Color.White) },
+                                                text = { Text("打开新文件", color = Color.White) }
+                                            )
+                                        }
+                                        MainTab.SETTINGS -> {}
+                                    }
+                                }
+                            },
+                            floatingActionButtonPosition = if (currentTab == MainTab.HOME) FabPosition.Center else FabPosition.End
+                        ) { paddingValues ->
+                            Row(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
+                                if (isLandscape && topScreen == null) {
+                                    GlobalNavigationRail(
+                                        selectedTab = when (currentTab) {
+                                            MainTab.FILES -> 0
+                                            MainTab.HOME -> 1
+                                            MainTab.SETTINGS -> 2
+                                        },
+                                        onTabSelected = { index: Int ->
+                                            HapticUtils.triggerTick(this@MainActivity)
+                                            screenStack = emptyList()
+                                            currentTab = when (index) {
+                                                0 -> MainTab.FILES
+                                                1 -> MainTab.HOME
+                                                2 -> MainTab.SETTINGS
+                                                else -> MainTab.HOME
+                                            }
+                                        }
+                                    )
+                                }
 
-                                    // 4. 全局设置 Tab
-                                    currentTab == MainTab.SETTINGS -> SettingsScreen()
+                                Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
+                                    when {
+                                        topScreen != null -> when (topScreen) {
+                                            is Screen.WordReader -> WordReaderScreen(
+                                                document = topScreen.doc,
+                                                onBackClick = { popScreen() }
+                                            ) {
+                                                HapticUtils.triggerTick(this@MainActivity)
+                                                currentTab = MainTab.SETTINGS
+                                                screenStack = emptyList()
+                                            }
+                                            is Screen.ExcelReader -> ExcelReaderScreen(
+                                                document = topScreen.doc,
+                                                onBackClick = { popScreen() }
+                                            ) {
+                                                HapticUtils.triggerTick(this@MainActivity)
+                                                currentTab = MainTab.SETTINGS
+                                                screenStack = emptyList()
+                                            }
+                                            is Screen.PptReader -> PptReaderScreen(
+                                                document = topScreen.doc,
+                                                onBackClick = { popScreen() }
+                                            ) {
+                                                HapticUtils.triggerTick(this@MainActivity)
+                                                currentTab = MainTab.SETTINGS
+                                                screenStack = emptyList()
+                                            }
+                                            is Screen.PdfReader -> PdfReaderScreen(
+                                                document = topScreen.doc,
+                                                onBackClick = { popScreen() }
+                                            ) {
+                                                HapticUtils.triggerTick(this@MainActivity)
+                                                currentTab = MainTab.SETTINGS
+                                                screenStack = emptyList()
+                                            }
+                                            is Screen.OcrResult -> OcrResultScreen(
+                                                text = topScreen.text,
+                                                blocks = topScreen.blocks,
+                                                onBackClick = { popScreen() }
+                                            )
+                                            is Screen.CameraCapture -> CameraCaptureScreen(
+                                                onImageCaptured = { uri ->
+                                                    HapticUtils.triggerSuccess(this@MainActivity)
+                                                    popScreen()
+                                                    handleOcrImage(uri)
+                                                },
+                                                onGalleryClick = { imagePickerLauncher.launch("image/*") },
+                                                onBackClick = { popScreen() }
+                                            )
+                                        }
+
+                                        else -> when (currentTab) {
+                                            MainTab.HOME -> HomeScreen(
+                                                onNavigateToShelf = { 
+                                                    HapticUtils.triggerTick(this@MainActivity)
+                                                    currentTab = MainTab.FILES 
+                                                },
+                                                onNavigateToProfile = { 
+                                                    HapticUtils.triggerTick(this@MainActivity)
+                                                    currentTab = MainTab.SETTINGS 
+                                                },
+                                                onSettingsClick = { 
+                                                    HapticUtils.triggerTick(this@MainActivity)
+                                                    currentTab = MainTab.SETTINGS
+                                                    screenStack = emptyList()
+                                                },
+                                                onViewAllClick = { 
+                                                    HapticUtils.triggerTick(this@MainActivity)
+                                                    currentTab = MainTab.FILES 
+                                                },
+                                                onScanClick = {
+                                                    HapticUtils.triggerImpact(this@MainActivity)
+                                                    cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
+                                                },
+                                                onFunctionCardClick = { title ->
+                                                    HapticUtils.triggerTick(this@MainActivity)
+                                                    when {
+                                                        title.contains("Word") -> openDocumentPicker(DocumentType.WORD)
+                                                        title.contains("Excel") -> openDocumentPicker(DocumentType.EXCEL)
+                                                        title.contains("PPT") -> openDocumentPicker(DocumentType.POWERPOINT)
+                                                        title.contains("PDF") -> openDocumentPicker(DocumentType.PDF)
+                                                    }
+                                                },
+                                                onRecentFileClick = { file ->
+                                                    HapticUtils.triggerTick(this@MainActivity)
+                                                    val uri = file.uri.toUri()
+                                                    if (UriPermissionManager.hasUriPermission(this@MainActivity, uri)) {
+                                                        val docType = when (file.type) {
+                                                            "word" -> DocumentType.WORD
+                                                            "excel" -> DocumentType.EXCEL
+                                                            "ppt" -> DocumentType.POWERPOINT
+                                                            "pdf" -> DocumentType.PDF
+                                                            else -> DocumentType.UNKNOWN
+                                                        }
+                                                        handleSelectedDocument(uri, docType, file.name)
+                                                    } else {
+                                                        parseError = "文件访问权限已失效，请重新选择文件"
+                                                    }
+                                                },
+                                                recentFiles = recentFiles,
+                                            )
+
+                                            MainTab.FILES -> FileListScreen(
+                                                files = recentFiles.map { file ->
+                                                    DocumentFile(
+                                                        id = file.uri,
+                                                        name = file.name,
+                                                        type = when (file.type) {
+                                                            "word" -> FileType.WORD
+                                                            "excel" -> FileType.EXCEL
+                                                            "ppt" -> FileType.PPT
+                                                            "pdf" -> FileType.PDF
+                                                            else -> FileType.WORD
+                                                        },
+                                                        size = "",
+                                                        modifiedTime = file.openTimeDisplay,
+                                                        path = file.uri
+                                                    )
+                                                },
+                                                onFileClick = { file ->
+                                                    val uri = file.id.toUri()
+                                                    if (UriPermissionManager.hasUriPermission(this@MainActivity, uri)) {
+                                                        val docType = when (file.type) {
+                                                            FileType.WORD -> DocumentType.WORD
+                                                            FileType.EXCEL -> DocumentType.EXCEL
+                                                            FileType.PPT -> DocumentType.POWERPOINT
+                                                            FileType.PDF -> DocumentType.PDF
+                                                        }
+                                                        handleSelectedDocument(uri, docType, file.name)
+                                                    } else {
+                                                        parseError = "文件访问权限已失效，请重新选择文件"
+                                                    }
+                                                }
+                                            )
+
+                                            MainTab.SETTINGS -> SettingsScreen()
+                                        }
+                                    }
                                 }
                             }
                         }
-                    }
 
-                    // 加载中遮罩
-                    if (isLoading) {
-                        LoadingOverlay()
-                    }
-                    
-                    // 错误提示对话框
-                    parseError?.let { error ->
-                        ErrorDialog(
-                            message = error,
-                            onDismiss = { parseError = null },
-                            onRetry = {
-                                parseError = null
-                                openDocumentPicker()
-                            },
-                        )
+                        if (isLoading) {
+                            LoadingOverlay()
+                        }
+                        
+                        parseError?.let { error ->
+                            ErrorDialog(
+                                message = error,
+                                onDismiss = { parseError = null },
+                                onRetry = { parseError = null; openDocumentPicker() },
+                            )
+                        }
                     }
                 }
             }
         }
     }
 
-    /**
-     * 进入新的阅读器页面（压栈）
-     */
     private fun pushScreen(screen: Screen) {
         screenStack += screen
     }
 
-    /**
-     * 退出当前阅读器页面（出栈）
-     */
     private fun popScreen() {
         if (screenStack.isNotEmpty()) {
             screenStack = screenStack.dropLast(1)
         }
     }
 
-    /**
-     * 打开 SAF 文件选择器
-     */
     private fun openDocumentPicker(type: DocumentType? = null) {
         DocumentPicker.openPicker(documentPickerLauncher, type)
     }
 
-    /**
-     * 处理 OCR 图片识别
-     */
     private fun handleOcrImage(uri: Uri) {
         isLoading = true
         lifecycleScope.launch {
@@ -490,66 +483,27 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /**
-     * 核心业务逻辑：处理用户选定的文档
-     * 包含：显示加载动画 -> 后台协程解析内容 -> 处理解析结果 -> 进入对应阅读器
-     */
     private fun handleSelectedDocument(uri: Uri, docType: DocumentType, fileName: String?) {
-        Log.d(TAG, "handleSelectedDocument: uri=$uri, docType=$docType, fileName=$fileName")
-
         if (docType == DocumentType.UNKNOWN) {
             parseError = "不支持的文件格式"
             return
         }
-
         isLoading = true
         parseError = null
-
-        // 启动后台协程，避免解析大文件时界面卡死
         lifecycleScope.launch {
             try {
                 when (docType) {
                     DocumentType.WORD -> {
                         when (val result = WordParser().parse(this@MainActivity, uri)) {
                             is ParseResult.Success -> {
-                                recentFileRepository.addRecentFile(
-                                    uri = uri.toString(),
-                                    fileName = fileName ?: result.data.fileName,
-                                    type = "word",
-                                )
-                                pushScreen(
-                                    Screen.WordReader(
-                                        WordDocument(
-                                            filePath = uri.toString(),
-                                            fileName = fileName ?: result.data.fileName,
-                                            contents = result.data.contents.map {
-                                                when (it.type) {
-                                                    com.danmo.reader.parser.WordContentType.IMAGE -> {
-                                                        com.danmo.reader.word.WordContent.Image(
-                                                            imagePath = it.imagePath ?: "",
-                                                            description = it.description,
-                                                            index = it.index
-                                                        )
-                                                    }
-                                                    com.danmo.reader.parser.WordContentType.TABLE -> {
-                                                        com.danmo.reader.word.WordContent.Table(
-                                                            rows = it.tableRows ?: emptyList(),
-                                                            index = it.index
-                                                        )
-                                                    }
-                                                    else -> {
-                                                        com.danmo.reader.word.WordContent.Text(
-                                                            text = it.text ?: "",
-                                                            isHeading = it.isHeading,
-                                                            index = it.index
-                                                        )
-                                                    }
-                                                }
-                                            },
-                                            lastReadIndex = 0,
-                                        )
-                                    )
-                                )
+                                recentFileRepository.addRecentFile(uri.toString(), fileName ?: result.data.fileName, "word")
+                                pushScreen(Screen.WordReader(WordDocument(uri.toString(), fileName ?: result.data.fileName, result.data.contents.map {
+                                    when (it.type) {
+                                        com.danmo.reader.parser.WordContentType.IMAGE -> com.danmo.reader.word.WordContent.Image(it.imagePath ?: "", it.description, it.index)
+                                        com.danmo.reader.parser.WordContentType.TABLE -> com.danmo.reader.word.WordContent.Table(it.tableRows ?: emptyList(), it.index)
+                                        else -> com.danmo.reader.word.WordContent.Text(it.text ?: "", it.isHeading, it.index)
+                                    }
+                                })))
                             }
                             is ParseResult.Error -> parseError = result.message
                         }
@@ -557,29 +511,11 @@ class MainActivity : AppCompatActivity() {
                     DocumentType.EXCEL -> {
                         when (val result = ExcelParser().parse(this@MainActivity, uri)) {
                             is ParseResult.Success -> {
-                                recentFileRepository.addRecentFile(
-                                    uri = uri.toString(),
-                                    fileName = fileName ?: result.data.fileName,
-                                    type = "excel",
-                                )
+                                recentFileRepository.addRecentFile(uri.toString(), fileName ?: result.data.fileName, "excel")
                                 val sheet = result.data.sheets.firstOrNull()
-                                pushScreen(
-                                    Screen.ExcelReader(
-                                        if (sheet != null) {
-                                            ExcelDocument(
-                                                filePath = uri.toString(),
-                                                fileName = fileName ?: result.data.fileName,
-                                                sheetName = sheet.name,
-                                                headers = sheet.headers,
-                                                rows = sheet.rows.map { it.cells },
-                                                lastReadRow = 0,
-                                                images = sheet.imagePaths
-                                            )
-                                        } else {
-                                            throw Exception("解析失败，未找到有效的工作表")
-                                        }
-                                    )
-                                )
+                                if (sheet != null) {
+                                    pushScreen(Screen.ExcelReader(ExcelDocument(uri.toString(), fileName ?: result.data.fileName, sheet.name, sheet.headers, sheet.rows.map { it.cells }, 0, sheet.imagePaths)))
+                                } else throw Exception("未找到有效工作表")
                             }
                             is ParseResult.Error -> parseError = result.message
                         }
@@ -587,31 +523,10 @@ class MainActivity : AppCompatActivity() {
                     DocumentType.POWERPOINT -> {
                         when (val result = PptParser().parse(this@MainActivity, uri)) {
                             is ParseResult.Success -> {
-                                recentFileRepository.addRecentFile(
-                                    uri = uri.toString(),
-                                    fileName = fileName ?: result.data.fileName,
-                                    type = "ppt",
-                                )
-                                pushScreen(
-                                    Screen.PptReader(
-                                        PptDocument(
-                                            filePath = uri.toString(),
-                                            fileName = fileName ?: result.data.fileName,
-                                            totalSlides = result.data.totalSlides,
-                                            slides = result.data.slides.map {
-                                                com.danmo.reader.ppt.PptSlide(
-                                                    slideNumber = it.slideNumber,
-                                                    title = it.title,
-                                                    content = it.content,
-                                                    notes = it.notes,
-                                                    images = it.imagePaths,
-                                                    tables = it.tables
-                                                )
-                                            },
-                                            lastReadSlide = 0,
-                                        )
-                                    )
-                                )
+                                recentFileRepository.addRecentFile(uri.toString(), fileName ?: result.data.fileName, "ppt")
+                                pushScreen(Screen.PptReader(PptDocument(uri.toString(), fileName ?: result.data.fileName, result.data.totalSlides, result.data.slides.map {
+                                    com.danmo.reader.ppt.PptSlide(it.slideNumber, it.title, it.content, it.notes, it.imagePaths, it.tables)
+                                })))
                             }
                             is ParseResult.Error -> parseError = result.message
                         }
@@ -619,184 +534,73 @@ class MainActivity : AppCompatActivity() {
                     DocumentType.PDF -> {
                         when (val result = PdfParser().parse(this@MainActivity, uri)) {
                             is ParseResult.Success -> {
-                                recentFileRepository.addRecentFile(
-                                    uri = uri.toString(),
-                                    fileName = fileName ?: result.data.fileName,
-                                    type = "pdf",
-                                )
-                                pushScreen(
-                                    Screen.PdfReader(
-                                        PdfDocument(
-                                            filePath = uri.toString(),
-                                            fileName = fileName ?: result.data.fileName,
-                                            totalPages = result.data.totalPages,
-                                            pages = result.data.pages.map {
-                                                com.danmo.reader.pdf.PdfPage(
-                                                    pageNumber = it.pageNumber,
-                                                    paragraphs = it.paragraphs,
-                                                    images = it.imagePaths
-                                                )
-                                            },
-                                            lastReadPage = 0,
-                                            lastReadParagraph = 0,
-                                        )
-                                    )
-                                )
+                                recentFileRepository.addRecentFile(uri.toString(), fileName ?: result.data.fileName, "pdf")
+                                pushScreen(Screen.PdfReader(PdfDocument(uri.toString(), fileName ?: result.data.fileName, result.data.totalPages, result.data.pages.map {
+                                    com.danmo.reader.pdf.PdfPage(it.pageNumber, it.paragraphs, it.imagePaths)
+                                })))
                             }
                             is ParseResult.Error -> parseError = result.message
                         }
                     }
-                    DocumentType.UNKNOWN -> {
-                        parseError = "不支持的文件格式"
-                    }
+                    else -> parseError = "不支持的格式"
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "解析异常", e)
                 parseError = "解析异常: ${e.message}"
             } finally {
-                isLoading = false // 无论成功失败，隐藏加载动画
+                isLoading = false
             }
         }
     }
-}
 
-/**
- * 通用的加载中遮罩组件
- */
-@Composable
-private fun LoadingOverlay() {
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center,
-    ) {
-        Box(
-            modifier = Modifier
-                .size(120.dp)
-                .clip(RoundedCornerShape(16.dp))
-                .background(Color(0xCC000000)),
-            contentAlignment = Alignment.Center,
-        ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                CircularProgressIndicator(color = Color.White)
-                Spacer(modifier = Modifier.height(12.dp))
-                Text("解析中...", color = Color.White, fontSize = 14.sp)
-            }
-        }
-    }
-}
-
-/**
- * 全局底部导航栏
- */
-@Composable
-private fun BottomNavigationBar(
-    selectedTab: Int,
-    onTabSelected: (Int) -> Unit
-) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = Color.White,
-        shadowElevation = 8.dp
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 8.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            bottomNavItems.forEachIndexed { index, item ->
-                val isSelected = selectedTab == index
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier
-                        .weight(1f)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClick = { onTabSelected(index) }
-                        )
-                        .padding(vertical = 4.dp)
-                ) {
-                    Icon(
-                        painter = painterResource(id = item.iconRes),
-                        contentDescription = item.label,
-                        modifier = Modifier.size(24.dp),
-                        tint = if (isSelected) Color(0xFF4A6FA5) else Color(0xFF999999)
-                    )
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = item.label,
-                        fontSize = 11.sp,
-                        color = if (isSelected) Color(0xFF4A6FA5) else Color(0xFF999999)
-                    )
+    @Composable
+    private fun LoadingOverlay() {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Box(modifier = Modifier.size(120.dp).clip(RoundedCornerShape(16.dp)).background(Color(0xCC000000)), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    CircularProgressIndicator(color = Color.White)
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text("解析中...", color = Color.White, fontSize = 14.sp)
                 }
             }
         }
     }
-}
 
-/**
- * 全局横屏侧边导航栏
- */
-@Composable
-private fun GlobalNavigationRail(
-    selectedTab: Int,
-    onTabSelected: (Int) -> Unit
-) {
-    NavigationRail(
-        containerColor = Color.White,
-        modifier = Modifier.fillMaxHeight()
-    ) {
-        Spacer(modifier = Modifier.weight(1f))
-        bottomNavItems.forEachIndexed { index, item ->
-            val isSelected = selectedTab == index
-            NavigationRailItem(
-                selected = isSelected,
-                onClick = { onTabSelected(index) },
-                icon = {
-                    Icon(
-                        painter = painterResource(id = item.iconRes),
-                        contentDescription = item.label,
-                        modifier = Modifier.size(24.dp)
-                    )
-                },
-                label = { Text(item.label, fontSize = 11.sp) },
-                colors = NavigationRailItemDefaults.colors(
-                    selectedIconColor = Color(0xFF4A6FA5),
-                    selectedTextColor = Color(0xFF4A6FA5),
-                    unselectedIconColor = Color(0xFF999999),
-                    unselectedTextColor = Color(0xFF999999),
-                    indicatorColor = Color(0xFF4A6FA5).copy(alpha = 0.1f)
-                )
-            )
+    @Composable
+    private fun BottomNavigationBar(selectedTab: Int, onTabSelected: (Int) -> Unit) {
+        Surface(modifier = Modifier.fillMaxWidth(), color = Color.White, shadowElevation = 8.dp) {
+            Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+                bottomNavItems.forEachIndexed { index, item ->
+                    val isSelected = selectedTab == index
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f).clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = { onTabSelected(index) }).padding(vertical = 4.dp)) {
+                        Icon(painter = painterResource(id = item.iconRes), contentDescription = item.label, modifier = Modifier.size(24.dp), tint = if (isSelected) Color(0xFF4A6FA5) else Color(0xFF999999))
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(text = item.label, fontSize = 11.sp, color = if (isSelected) Color(0xFF4A6FA5) else Color(0xFF999999))
+                    }
+                }
+            }
         }
-        Spacer(modifier = Modifier.weight(1f))
     }
-}
 
-/**
- * 通用的错误对话框组件
- */
-@Composable
-private fun ErrorDialog(
-    message: String,
-    onDismiss: () -> Unit,
-    onRetry: () -> Unit,
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("打开失败") },
-        text = { Text(message) },
-        confirmButton = {
-            TextButton(onClick = onRetry) {
-                Text("重试")
+    @Composable
+    private fun GlobalNavigationRail(selectedTab: Int, onTabSelected: (Int) -> Unit) {
+        NavigationRail(containerColor = Color.White, modifier = Modifier.fillMaxHeight()) {
+            Spacer(modifier = Modifier.weight(1f))
+            bottomNavItems.forEachIndexed { index, item ->
+                val isSelected = selectedTab == index
+                NavigationRailItem(
+                    selected = isSelected,
+                    onClick = { onTabSelected(index) },
+                    icon = { Icon(painter = painterResource(id = item.iconRes), contentDescription = item.label, modifier = Modifier.size(24.dp)) },
+                    label = { Text(item.label, fontSize = 11.sp) },
+                    colors = NavigationRailItemDefaults.colors(selectedIconColor = Color(0xFF4A6FA5), selectedTextColor = Color(0xFF4A6FA5), unselectedIconColor = Color(0xFF999999), unselectedTextColor = Color(0xFF999999), indicatorColor = Color(0xFF4A6FA5).copy(alpha = 0.1f))
+                )
             }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("取消")
-            }
-        },
-    )
+            Spacer(modifier = Modifier.weight(1f))
+        }
+    }
+
+    @Composable
+    private fun ErrorDialog(message: String, onDismiss: () -> Unit, onRetry: () -> Unit) {
+        AlertDialog(onDismissRequest = onDismiss, title = { Text("打开失败") }, text = { Text(message) }, confirmButton = { TextButton(onClick = onRetry) { Text("重试") } }, dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } })
+    }
 }
