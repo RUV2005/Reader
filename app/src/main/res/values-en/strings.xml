@@ -25,10 +25,15 @@
     <string name="files_title">File Manager</string>
     <string name="files_search_placeholder">Search file name...</string>
     <string name="files_filter_all">All</string>
+    <string name="files_filter_word">Word</string>
+    <string name="files_filter_excel">Excel</string>
+    <string name="files_filter_ppt">PPT</string>
+    <string name="files_filter_pdf">PDF</string>
     <string name="files_empty_title">No file records</string>
     <string name="files_empty_tip">Documents opened from home will appear here</string>
     <string name="action_open_new_file">Open New File</string>
     <string name="last_opened">Last opened: %1$s</string>
+    <string name="file_detail">View Details</string>
 
     <!-- Settings -->
     <string name="group_reading">Reading Settings</string>
@@ -37,6 +42,8 @@
     <string name="group_about">About</string>
 
     <string name="setting_tts">Text-to-Speech</string>
+    <string name="setting_tts_on">On</string>
+    <string name="setting_tts_off">Off</string>
     <string name="setting_tts_desc_on">On, automatically read documents</string>
     <string name="setting_tts_desc_off">Off</string>
     <string name="setting_speech_rate">Default Speech Rate</string>
@@ -59,10 +66,87 @@
 
     <string name="about_title">About App</string>
     <string name="about_version">Version 1.0.0 (Stable)</string>
+    <string name="about_build">Version 1.0.0 (Build 20240611)</string>
     <string name="feedback_title">Feedback</string>
     <string name="feedback_subtitle">Tell us your suggestions</string>
     <string name="privacy_title">Privacy Policy</string>
     <string name="privacy_subtitle">Data security instructions</string>
+
+    <!-- Time -->
+    <string name="time_just_now">Just now</string>
+    <string name="time_min_ago">%1$d m ago</string>
+    <string name="time_hour_ago">%1$d h ago</string>
+    <string name="time_day_ago">%1$d d ago</string>
+
+    <!-- Settings - Dialog Details -->
+    <string name="storage_desc">Current storage used by cache:</string>
+    <string name="storage_tip">Cache mainly includes document previews and OCR temp files. Clearing cache won\'t delete local documents or history.</string>
+    <string name="storage_clear">Clear Cache</string>
+
+    <string name="gesture_title">Gesture Control Guide</string>
+    <string name="gesture_swipe_title">Swipe Left/Right</string>
+    <string name="gesture_swipe_desc">Switch to previous/next paragraph in reader.</string>
+    <string name="gesture_double_tap_title">Double Tap</string>
+    <string name="gesture_double_tap_desc">Immediately start reading next paragraph.</string>
+    <string name="gesture_long_press_title">Long Press</string>
+    <string name="gesture_long_press_desc">Trigger more management options for documents (Coming soon).</string>
+    <string name="gesture_shake_title">Shake</string>
+    <string name="gesture_shake_desc">Quickly wake up voice assistant in any screen (In development).</string>
+    <string name="gesture_tip">Tip: All gestures are optimized for system TalkBack. Suggest enabling TalkBack for best accessibility.</string>
+
+    <string name="acc_title">TalkBack Optimization</string>
+    <string name="acc_intro">Deeply customized experiences for screen readers:</string>
+    <string name="acc_item_1">Semantic Labels: Precise descriptions for all icons and buttons.</string>
+    <string name="acc_item_2">Focus Flow: Ensuring focus follows the document logical order.</string>
+    <string name="acc_item_3">High Contrast: Support black background with yellow text.</string>
+    <string name="acc_item_4">Real-time Feedback: Progress and status broadcasted via TTS.</string>
+
+    <string name="feedback_intro">Thank you for using Smart Reader! If you have any questions or suggestions, please contact us:</string>
+    <string name="feedback_email">Email: support@danmo-reader.com</string>
+    <string name="feedback_wechat">WeChat: ReaderHelper</string>
+    <string name="feedback_footer">Your feedback helps us do better.</string>
+
+    <string name="privacy_intro">We value your privacy highly:</string>
+    <string name="privacy_item_1">1. Local Processing: All parsing and OCR are done locally on your device.</string>
+    <string name="privacy_item_2">2. Minimum Permissions: Only request Camera and Storage as necessary.</string>
+    <string name="privacy_item_3">3. History Management: Reading history is only stored in local DataStore.</string>
+    <string name="privacy_item_4">4. No Third-party Sharing: We never share your data with anyone.</string>
+    <string name="privacy_confirm">Agree and Accept</string>
+
+    <string name="about_main_title">About Smart Reader</string>
+    <string name="about_desc">Smart Reader is an all-in-one document assistant for visually impaired users. Supports Word, Excel, PPT, PDF and OCR to eliminate reading barriers.</string>
+    <string name="about_copyright">© 2024 Smart Reader Team</string>
+
+    <!-- Settings - Preview -->
+    <string name="preview_title">Effect Preview</string>
+    <string name="preview_desc">Preview area showing current font and contrast effects</string>
+    <string name="preview_tag_font">Font %1$dsp</string>
+    <string name="preview_tag_speed">Speed %1$d%%</string>
+    <string name="preview_tag_contrast">High Contrast</string>
+    <string name="preview_text_highlight">The bright moon is rising above the sea, everyone faraway enjoy the same moment.</string>
+    <string name="preview_text_body">The sky and the water are in one color without dust.</string>
+    <string name="preview_tts_ready">TTS engine initializing…</string>
+    <string name="preview_tts_stop">■ Stop</string>
+    <string name="preview_tts_play">▶ Test Reading (Rate %1$d%%)</string>
+    <string name="preview_contrast_tip">⚡ High Contrast: Black bg + yellow text for better recognition</string>
+
+    <!-- Settings - Dialog Options -->
+    <string name="dialog_speed_title">Select Speed</string>
+    <string name="dialog_font_title">Select Font Size</string>
+    <string name="dialog_lang_title">Select Language</string>
+    <string name="dialog_theme_title">Select Theme</string>
+    <string name="dialog_selected">, currently selected</string>
+
+    <string name="speed_0_5">50% — Very Slow</string>
+    <string name="speed_0_75">75% — Slow</string>
+    <string name="speed_1_0">100% — Normal</string>
+    <string name="speed_1_25">125% — Fast</string>
+    <string name="speed_1_5">150% — Very Fast</string>
+    <string name="speed_2_0">200% — Super Fast</string>
+    <string name="speed_2_5">250% — Hyper Fast</string>
+    <string name="speed_3_0">300% — Maximum</string>
+    <string name="speed_4_0">400% — Extreme</string>
+    <string name="speed_5_0">500% — Ultra</string>
 
     <!-- Dialogs -->
     <string name="dialog_confirm">Confirm</string>
@@ -87,6 +171,10 @@
     <string name="reader_pos_format">Item %1$d / %2$d</string>
     <string name="reader_page_format">Page %1$d / %2$d</string>
     <string name="reader_row_format">Row %1$d / %2$d</string>
+    <string name="reader_back_tip">Back, reading will pause</string>
+    <string name="reader_para_tip">Para %1$d, %2$s</string>
+    <string name="reader_title_tip">Title: %1$s</string>
+    <string name="reader_empty_para">Empty paragraph</string>
 
     <!-- Document Elements -->
     <string name="desc_table_summary">Table, total %1$d rows and %2$d columns.</string>
@@ -96,6 +184,9 @@
     <string name="desc_image_count">Contains %1$d illustrations.</string>
     <string name="desc_table_count">Contains %1$d tables.</string>
     <string name="desc_notes">Notes: %1$s</string>
+    <string name="desc_notes_show">Show Notes</string>
+    <string name="desc_notes_hide">Hide Notes</string>
+    <string name="desc_table_item">Table %1$d</string>
 
     <!-- Excel Specific -->
     <string name="excel_mode_row">Row</string>
@@ -116,6 +207,7 @@
     <string name="ocr_result_title">Result</string>
     <string name="ocr_gallery">Gallery</string>
     <string name="ocr_no_text">No text recognized in the image</string>
+    <string name="ocr_recognizing">Recognizing...</string>
 
     <string name="lang_zh">简体中文</string>
     <string name="lang_en">English</string>

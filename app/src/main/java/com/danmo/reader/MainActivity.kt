@@ -127,7 +127,7 @@ class MainActivity : AppCompatActivity() {
             if (isGranted) {
                 pushScreen(Screen.CameraCapture)
             } else {
-                parseError = "需要相机权限才能使用扫描功能"
+                parseError = getString(R.string.perm_camera_denied)
             }
         }
 
@@ -195,41 +195,41 @@ class MainActivity : AppCompatActivity() {
                                 if (topScreen == null) {
                                     when (currentTab) {
                                         MainTab.FILES -> {
-                                        TopAppBar(
-                                            title = { Text(stringResource(id = R.string.tab_files), fontSize = 20.sp, fontWeight = FontWeight.Bold) },
-                                            navigationIcon = {
-                                                IconButton(onClick = { 
-                                                    HapticUtils.triggerTick(this@MainActivity)
-                                                    currentTab = MainTab.HOME 
-                                                }) {
-                                                    Icon(painterResource(id = R.drawable.ic_back), contentDescription = stringResource(id = R.string.dialog_close))
-                                                }
-                                            },
-                                            colors = TopAppBarDefaults.topAppBarColors(
-                                                containerColor = Color(0xFF4A6FA5),
-                                                titleContentColor = Color.White,
-                                                navigationIconContentColor = Color.White
+                                            TopAppBar(
+                                                title = { Text(stringResource(id = R.string.files_title), fontSize = 20.sp, fontWeight = FontWeight.Bold) },
+                                                navigationIcon = {
+                                                    IconButton(onClick = { 
+                                                        HapticUtils.triggerTick(this@MainActivity)
+                                                        currentTab = MainTab.HOME 
+                                                    }) {
+                                                        Icon(painterResource(id = R.drawable.ic_back), contentDescription = stringResource(id = R.string.dialog_close))
+                                                    }
+                                                },
+                                                colors = TopAppBarDefaults.topAppBarColors(
+                                                    containerColor = Color(0xFF4A6FA5),
+                                                    titleContentColor = Color.White,
+                                                    navigationIconContentColor = Color.White
+                                                )
                                             )
-                                        )
-                                    }
-                                    MainTab.SETTINGS -> {
-                                        TopAppBar(
-                                            title = { Text(stringResource(id = R.string.tab_settings), fontSize = 20.sp, fontWeight = FontWeight.Bold) },
-                                            navigationIcon = {
-                                                IconButton(onClick = { 
-                                                    HapticUtils.triggerTick(this@MainActivity)
-                                                    currentTab = MainTab.HOME 
-                                                }) {
-                                                    Icon(painterResource(id = R.drawable.ic_back), contentDescription = stringResource(id = R.string.dialog_close))
-                                                }
-                                            },
-                                            colors = TopAppBarDefaults.topAppBarColors(
-                                                containerColor = Color(0xFF4A6FA5),
-                                                titleContentColor = Color.White,
-                                                navigationIconContentColor = Color.White
+                                        }
+                                        MainTab.SETTINGS -> {
+                                            TopAppBar(
+                                                title = { Text(stringResource(id = R.string.tab_settings), fontSize = 20.sp, fontWeight = FontWeight.Bold) },
+                                                navigationIcon = {
+                                                    IconButton(onClick = { 
+                                                        HapticUtils.triggerTick(this@MainActivity)
+                                                        currentTab = MainTab.HOME 
+                                                    }) {
+                                                        Icon(painterResource(id = R.drawable.ic_back), contentDescription = stringResource(id = R.string.dialog_close))
+                                                    }
+                                                },
+                                                colors = TopAppBarDefaults.topAppBarColors(
+                                                    containerColor = Color(0xFF4A6FA5),
+                                                    titleContentColor = Color.White,
+                                                    navigationIconContentColor = Color.White
+                                                )
                                             )
-                                        )
-                                    }
+                                        }
                                         MainTab.HOME -> { /* 首页自带 Header */ }
                                     }
                                 }
@@ -398,7 +398,7 @@ class MainActivity : AppCompatActivity() {
                                                         }
                                                         handleSelectedDocument(uri, docType, file.name)
                                                     } else {
-                                                        parseError = "文件访问权限已失效，请重新选择文件"
+                                                        parseError = getString(R.string.perm_file_invalid)
                                                     }
                                                 },
                                                 recentFiles = recentFiles,
@@ -432,7 +432,7 @@ class MainActivity : AppCompatActivity() {
                                                         }
                                                         handleSelectedDocument(uri, docType, file.name)
                                                     } else {
-                                                        parseError = "文件访问权限已失效，请重新选择文件"
+                                                        parseError = getString(R.string.perm_file_invalid)
                                                     }
                                                 }
                                             )
@@ -483,10 +483,10 @@ class MainActivity : AppCompatActivity() {
                 if (result.blocks.isNotEmpty()) {
                     pushScreen(Screen.OcrResult(result.text, result.blocks))
                 } else {
-                    parseError = "未能在图片中识别到文字"
+                    parseError = getString(R.string.ocr_no_text)
                 }
             } catch (e: Exception) {
-                parseError = "识别出错: ${e.message}"
+                parseError = "${getString(R.string.error_open_failed)}: ${e.message}"
             } finally {
                 isLoading = false
             }
@@ -495,7 +495,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun handleSelectedDocument(uri: Uri, docType: DocumentType, fileName: String?) {
         if (docType == DocumentType.UNKNOWN) {
-            parseError = "不支持的文件格式"
+            parseError = "Unsupported format"
             return
         }
         isLoading = true
@@ -509,7 +509,7 @@ class MainActivity : AppCompatActivity() {
                                 recentFileRepository.addRecentFile(uri.toString(), fileName ?: result.data.fileName, "word")
                                 pushScreen(Screen.WordReader(WordDocument(uri.toString(), fileName ?: result.data.fileName, result.data.contents.map {
                                     when (it.type) {
-                                        com.danmo.reader.parser.WordContentType.IMAGE -> com.danmo.reader.word.WordContent.Image(it.imagePath ?: "", it.description, it.index)
+                                        com.danmo.reader.parser.WordContentType.IMAGE -> com.danmo.reader.word.WordContent.Image(it.imagePath ?: "", it.description ?: "", it.index)
                                         com.danmo.reader.parser.WordContentType.TABLE -> com.danmo.reader.word.WordContent.Table(it.tableRows ?: emptyList(), it.index)
                                         else -> com.danmo.reader.word.WordContent.Text(it.text ?: "", it.isHeading, it.index)
                                     }
@@ -525,7 +525,7 @@ class MainActivity : AppCompatActivity() {
                                 val sheet = result.data.sheets.firstOrNull()
                                 if (sheet != null) {
                                     pushScreen(Screen.ExcelReader(ExcelDocument(uri.toString(), fileName ?: result.data.fileName, sheet.name, sheet.headers, sheet.rows.map { it.cells }, 0, sheet.imagePaths)))
-                                } else throw Exception("未找到有效工作表")
+                                } else throw Exception("No sheet found")
                             }
                             is ParseResult.Error -> parseError = result.message
                         }
@@ -552,10 +552,10 @@ class MainActivity : AppCompatActivity() {
                             is ParseResult.Error -> parseError = result.message
                         }
                     }
-                    else -> parseError = "不支持的格式"
+                    else -> parseError = "Unsupported"
                 }
             } catch (e: Exception) {
-                parseError = "解析异常: ${e.message}"
+                parseError = "${getString(R.string.error_open_failed)}: ${e.message}"
             } finally {
                 isLoading = false
             }
@@ -569,7 +569,7 @@ class MainActivity : AppCompatActivity() {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     CircularProgressIndicator(color = Color.White)
                     Spacer(modifier = Modifier.height(12.dp))
-                    Text("解析中...", color = Color.White, fontSize = 14.sp)
+                    Text(stringResource(id = R.string.loading_parsing), color = Color.White, fontSize = 14.sp)
                 }
             }
         }
@@ -612,6 +612,6 @@ class MainActivity : AppCompatActivity() {
 
     @Composable
     private fun ErrorDialog(message: String, onDismiss: () -> Unit, onRetry: () -> Unit) {
-        AlertDialog(onDismissRequest = onDismiss, title = { Text("打开失败") }, text = { Text(message) }, confirmButton = { TextButton(onClick = onRetry) { Text("重试") } }, dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } })
+        AlertDialog(onDismissRequest = onDismiss, title = { Text(stringResource(id = R.string.error_open_failed)) }, text = { Text(message) }, confirmButton = { TextButton(onClick = onRetry) { Text(stringResource(id = R.string.error_retry)) } }, dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(id = R.string.dialog_cancel)) } })
     }
 }

@@ -3,7 +3,7 @@ package com.danmo.reader.ocr.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -27,19 +28,36 @@ import kotlinx.coroutines.flow.collectLatest
 fun OcrResultScreen(
     text: String,
     blocks: List<String>,
-    onBackClick: () -> Unit
+    onBackClick: () -> Unit = {}
 ) {
-    var currentIndex by remember { mutableIntStateOf(0) }
+    var currentBlockIndex by remember { mutableIntStateOf(0) }
     var isSpeaking by remember { mutableStateOf(false) }
 
-    // TTS 回调逻辑
-    val ttsCallbacks = remember(blocks) {
+    val ttsCallbacks = remember(blocks, currentBlockIndex) {
         object : TtsCallbacks {
-            override fun onUtteranceDone(): Boolean = currentIndex < blocks.size - 1
-            override fun getCurrentText(): String = blocks.getOrNull(currentIndex) ?: ""
-            override fun getCurrentUtteranceId(): String = "ocr_block_$currentIndex"
-            override fun moveToNext() { if (currentIndex < blocks.size - 1) currentIndex++ }
-            override fun moveToPrevious() { if (currentIndex > 0) currentIndex-- }
+            override fun onUtteranceDone(): Boolean {
+                return currentBlockIndex < blocks.size - 1
+            }
+
+            override fun getCurrentText(): String {
+                return blocks.getOrNull(currentBlockIndex) ?: ""
+            }
+
+            override fun getCurrentUtteranceId(): String {
+                return "ocr_block_$currentBlockIndex"
+            }
+
+            override fun moveToNext() {
+                if (currentBlockIndex < blocks.size - 1) {
+                    currentBlockIndex++
+                }
+            }
+
+            override fun moveToPrevious() {
+                if (currentBlockIndex > 0) {
+                    currentBlockIndex--
+                }
+            }
         }
     }
 
@@ -54,10 +72,10 @@ fun OcrResultScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("识别结果", fontWeight = FontWeight.Bold) },
+                title = { Text(stringResource(id = R.string.ocr_result_title), fontWeight = FontWeight.Bold) },
                 navigationIcon = {
-                    IconButton(onClick = { ttsController.stop(); onBackClick() }) {
-                        Icon(painterResource(id = R.drawable.ic_back), contentDescription = "返回")
+                    IconButton(onClick = onBackClick) {
+                        Icon(painterResource(id = R.drawable.ic_back), contentDescription = stringResource(id = R.string.dialog_close))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -70,14 +88,14 @@ fun OcrResultScreen(
         bottomBar = {
             ReaderControlBar(
                 isSpeaking = isSpeaking,
-                currentIndex = currentIndex,
+                currentIndex = currentBlockIndex,
                 totalCount = blocks.size,
                 speechRate = ttsController.speechRate.collectAsState().value,
                 accentColor = Color(0xFF4A6FA5),
                 progressColor = Color(0xFF4A6FA5),
-                previousLabel = "上一段",
-                nextLabel = "下一段",
-                positionText = "${currentIndex + 1}/${blocks.size}",
+                previousLabel = stringResource(id = R.string.reader_prev_para),
+                nextLabel = stringResource(id = R.string.reader_next_para),
+                positionText = stringResource(id = R.string.reader_pos_format, currentBlockIndex + 1, blocks.size),
                 onPrevious = { ttsController.speakPrevious() },
                 onPlayPause = { ttsController.togglePlayPause() },
                 onNext = { ttsController.speakNext() },
@@ -89,34 +107,30 @@ fun OcrResultScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .background(Color(0xFF1A1A1A))
-                .padding(16.dp),
+                .background(Color(0xFFF5F5F5)),
+            contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            items(blocks.indices.toList()) { index ->
-                val block = blocks[index]
-                val isCurrent = index == currentIndex
-                
+            itemsIndexed(blocks) { index, block ->
+                val isCurrent = index == currentBlockIndex
                 Card(
                     modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
                     colors = CardDefaults.cardColors(
-                        containerColor = if (isCurrent) Color(0xFF4A6FA5).copy(alpha = 0.3f) else Color(0xFF2A2A2A)
+                        containerColor = if (isCurrent) Color(0xFF4A6FA5).copy(alpha = 0.1f) else Color.White
                     ),
-                    shape = RoundedCornerShape(8.dp),
-                    onClick = {
-                        currentIndex = index
-                        ttsController.speakCurrent()
-                    }
+                    elevation = CardDefaults.cardElevation(defaultElevation = if (isCurrent) 4.dp else 1.dp)
                 ) {
                     Text(
                         text = block,
-                        color = if (isCurrent) Color(0xFFFFFF00) else Color.White,
+                        modifier = Modifier.padding(16.dp),
                         fontSize = 16.sp,
-                        modifier = Modifier.padding(12.dp)
+                        color = if (isCurrent) Color(0xFF4A6FA5) else Color(0xFF333333),
+                        fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
+                        lineHeight = 24.sp
                     )
                 }
             }
-            item { Spacer(modifier = Modifier.height(80.dp)) }
         }
     }
 }

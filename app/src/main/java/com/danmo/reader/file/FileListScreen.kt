@@ -1,12 +1,10 @@
 package com.danmo.reader.file
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -15,49 +13,43 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.danmo.reader.R
 
-/**
- * 文件基本元数据模型
- */
+// ==================== 数据模型 ====================
+
+enum class FileType {
+    WORD, EXCEL, PPT, PDF
+}
+
 data class DocumentFile(
     val id: String,
     val name: String,
     val type: FileType,
     val size: String,
     val modifiedTime: String,
-    val path: String,
+    val path: String
 )
 
-/**
- * 支持的文件类型枚举
- */
-enum class FileType {
-    WORD, EXCEL, PPT, PDF
-}
+// ==================== 文件列表屏幕 ====================
 
-/**
- * 文件管理页面组件
- * 展示所有已打开文件的历史记录，支持搜索、筛选和快速打开新文件
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FileListScreen(
-    files: List<DocumentFile>,             // 文件列表数据
-    onFileClick: (DocumentFile) -> Unit = {}, // 点击文件条目的回调
+    files: List<DocumentFile>,
+    onFileClick: (DocumentFile) -> Unit = {}
 ) {
-    var searchQuery by remember { mutableStateOf("") }       // 搜索关键词
-    var selectedFilter by remember { mutableStateOf<FileType?>(null) } // 当前选中的文件类型筛选器
+    var searchQuery by remember { mutableStateOf("") }
+    var selectedFilter by remember { mutableStateOf<FileType?>(null) }
 
-    // 根据搜索和筛选条件过滤后的列表
-    val filteredFiles = remember(searchQuery, selectedFilter, files) {
+    val filteredFiles = remember(files, searchQuery, selectedFilter) {
         files.filter { file ->
-            val matchesSearch = searchQuery.isBlank() ||
-                    file.name.contains(searchQuery, ignoreCase = true)
-            val matchesFilter = (selectedFilter == null) || (file.type == selectedFilter)
+            val matchesSearch = file.name.contains(searchQuery, ignoreCase = true)
+            val matchesFilter = selectedFilter == null || file.type == selectedFilter
             matchesSearch && matchesFilter
         }
     }
@@ -65,69 +57,62 @@ fun FileListScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFFF5F5F5)),
+            .background(Color(0xFFF5F5F5))
     ) {
-        // 1. 顶部搜索栏
+        // 1. 搜索栏
         SearchBar(
             query = searchQuery,
-            onQueryChange = { searchQuery = it },
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            onQueryChange = { searchQuery = it }
         )
 
-        // 2. 类型筛选标签组
+        // 2. 过滤器
         FilterChips(
             selectedFilter = selectedFilter,
-            onFilterSelected = { selectedFilter = it },
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+            onFilterChange = { selectedFilter = it }
         )
 
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // 3. 文件列表区域
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            items(filteredFiles, key = { it.id }) { file ->
-                FileListItem(
-                    file = file,
-                ) { onFileClick(file) }
-            }
-
-            // 如果列表为空，展示占位提示
-            if (filteredFiles.isEmpty()) {
-                item {
-                    EmptyFileList()
+        // 3. 文件列表
+        if (filteredFiles.isEmpty()) {
+            EmptyFileState()
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(filteredFiles) { file ->
+                    FileItem(
+                        file = file,
+                        onClick = { onFileClick(file) }
+                    )
                 }
+                item { Spacer(modifier = Modifier.height(80.dp)) }
             }
-            
-            // 底部留白，避免内容被悬浮按钮遮挡
-            item { Spacer(modifier = Modifier.height(80.dp)) }
         }
     }
 }
 
-/**
- * 自定义搜索输入框
- */
+// ==================== 搜索栏 ====================
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SearchBar(
     query: String,
-    onQueryChange: (String) -> Unit,
-    modifier: Modifier = Modifier,
+    onQueryChange: (String) -> Unit
 ) {
-    OutlinedTextField(
+    TextField(
         value = query,
         onValueChange = onQueryChange,
-        modifier = modifier.fillMaxWidth(),
-        placeholder = { Text("搜索文件名...", color = Color(0xFF999999)) },
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp)
+            .clip(RoundedCornerShape(12.dp)),
+        placeholder = { Text(stringResource(id = R.string.files_search_placeholder)) },
         leadingIcon = {
             Icon(
                 painter = painterResource(id = R.drawable.ic_search),
-                contentDescription = "搜索",
-                modifier = Modifier.size(20.dp),
-                tint = Color(0xFF999999),
+                contentDescription = stringResource(id = R.string.files_search_placeholder),
+                tint = Color.Gray
             )
         },
         trailingIcon = {
@@ -135,118 +120,94 @@ private fun SearchBar(
                 IconButton(onClick = { onQueryChange("") }) {
                     Icon(
                         painter = painterResource(id = R.drawable.ic_close),
-                        contentDescription = "清除",
-                        modifier = Modifier.size(20.dp),
-                        tint = Color(0xFF999999),
+                        contentDescription = stringResource(id = R.string.dialog_close),
+                        tint = Color.Gray
                     )
                 }
             }
         },
-        singleLine = true,
-        shape = RoundedCornerShape(12.dp),
-        colors = OutlinedTextFieldDefaults.colors(
+        colors = TextFieldDefaults.colors(
             focusedContainerColor = Color.White,
             unfocusedContainerColor = Color.White,
-            focusedBorderColor = Color(0xFF4A6FA5),
-            unfocusedBorderColor = Color(0xFFDDDDDD),
+            disabledContainerColor = Color.White,
+            focusedIndicatorColor = Color.Transparent,
+            unfocusedIndicatorColor = Color.Transparent,
         ),
+        singleLine = true
     )
 }
 
-/**
- * 文件类型筛选标签组
- */
+// ==================== 过滤器 ====================
+
 @Composable
 private fun FilterChips(
     selectedFilter: FileType?,
-    onFilterSelected: (FileType?) -> Unit,
-    modifier: Modifier = Modifier,
+    onFilterChange: (FileType?) -> Unit
 ) {
-    androidx.compose.foundation.lazy.LazyRow(
-        modifier = modifier.fillMaxWidth(),
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .padding(bottom = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        item {
-            FilterChip(
-                label = "全部",
-                selected = selectedFilter == null,
-                onClick = { onFilterSelected(null) },
-            )
-        }
-        item {
-            FilterChip(
-                label = "Word",
-                selected = selectedFilter == FileType.WORD,
-                onClick = { onFilterSelected(FileType.WORD) },
-                color = Color(0xFF2B579A),
-            )
-        }
-        item {
-            FilterChip(
-                label = "Excel",
-                selected = selectedFilter == FileType.EXCEL,
-                onClick = { onFilterSelected(FileType.EXCEL) },
-                color = Color(0xFF217346),
-            )
-        }
-        item {
-            FilterChip(
-                label = "PPT",
-                selected = selectedFilter == FileType.PPT,
-                onClick = { onFilterSelected(FileType.PPT) },
-                color = Color(0xFFD24726),
-            )
-        }
-        item {
-            FilterChip(
-                label = "PDF",
-                selected = selectedFilter == FileType.PDF,
-                onClick = { onFilterSelected(FileType.PDF) },
-                color = Color(0xFFB91C1C),
-            )
-        }
-    }
-}
-
-@Composable
-private fun FilterChip(
-    label: String,
-    selected: Boolean,
-    onClick: () -> Unit,
-    color: Color = Color(0xFF4A6FA5),
-) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(20.dp))
-            .background(
-                if (selected) color.copy(alpha = 0.15f)
-                else Color(0xFFEEEEEE)
-            )
-            .border(
-                width = 1.dp,
-                color = if (selected) color.copy(alpha = 0.3f) else Color.Transparent,
-                shape = RoundedCornerShape(20.dp)
-            )
-            .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 6.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = label,
-            fontSize = 13.sp,
-            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-            color = if (selected) color else Color(0xFF666666),
+        FilterChipItem(
+            label = stringResource(id = R.string.files_filter_all),
+            isSelected = selectedFilter == null,
+            onClick = { onFilterChange(null) }
+        )
+        FilterChipItem(
+            label = stringResource(id = R.string.files_filter_word),
+            isSelected = selectedFilter == FileType.WORD,
+            onClick = { onFilterChange(FileType.WORD) }
+        )
+        FilterChipItem(
+            label = stringResource(id = R.string.files_filter_excel),
+            isSelected = selectedFilter == FileType.EXCEL,
+            onClick = { onFilterChange(FileType.EXCEL) }
+        )
+        FilterChipItem(
+            label = stringResource(id = R.string.files_filter_ppt),
+            isSelected = selectedFilter == FileType.PPT,
+            onClick = { onFilterChange(FileType.PPT) }
+        )
+        FilterChipItem(
+            label = stringResource(id = R.string.files_filter_pdf),
+            isSelected = selectedFilter == FileType.PDF,
+            onClick = { onFilterChange(FileType.PDF) }
         )
     }
 }
 
-/**
- * 单个文件列表项
- */
 @Composable
-private fun FileListItem(
+private fun FilterChipItem(
+    label: String,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .clickable(onClick = onClick)
+            .clip(RoundedCornerShape(20.dp)),
+        color = if (isSelected) Color(0xFF4A6FA5) else Color.White,
+        border = if (isSelected) null else androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE0E0E0))
+    ) {
+        Text(
+            text = label,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            fontSize = 12.sp,
+            color = if (isSelected) Color.White else Color.Gray,
+            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+        )
+    }
+}
+
+// ==================== 文件项 ====================
+
+@Composable
+private fun FileItem(
     file: DocumentFile,
-    onClick: () -> Unit,
+    onClick: () -> Unit
 ) {
     val (iconRes, iconColor, bgColor) = when (file.type) {
         FileType.WORD -> Triple(R.drawable.ic_word, Color(0xFF2B579A), Color(0xFF2B579A).copy(alpha = 0.08f))
@@ -261,89 +222,88 @@ private fun FileListItem(
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(14.dp),
-            verticalAlignment = Alignment.CenterVertically,
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            // 类型图标
             Box(
                 modifier = Modifier
-                    .size(48.dp)
-                    .clip(RoundedCornerShape(12.dp))
+                    .size(44.dp)
+                    .clip(RoundedCornerShape(10.dp))
                     .background(bgColor),
-                contentAlignment = Alignment.Center,
+                contentAlignment = Alignment.Center
             ) {
                 Icon(
                     painter = painterResource(id = iconRes),
-                    contentDescription = null,
-                    modifier = Modifier.size(26.dp),
-                    tint = iconColor,
+                    contentDescription = file.type.name,
+                    modifier = Modifier.size(24.dp),
+                    tint = iconColor
                 )
             }
 
-            Spacer(modifier = Modifier.width(14.dp))
+            Spacer(modifier = Modifier.width(12.dp))
 
-            // 文件详细信息
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = file.name,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Medium,
                     color = Color(0xFF333333),
-                    maxLines = 1,
+                    maxLines = 1
                 )
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(2.dp))
                 Text(
-                    text = "上次打开：${file.modifiedTime}",
+                    text = stringResource(id = R.string.last_opened, file.modifiedTime),
                     fontSize = 12.sp,
-                    color = Color(0xFF999999),
+                    color = Color(0xFF999999)
                 )
             }
 
-            // 右侧装饰图标
             Icon(
                 painter = painterResource(id = R.drawable.ic_chevron_right),
-                contentDescription = "查看详情",
+                contentDescription = stringResource(id = R.string.file_detail),
                 modifier = Modifier.size(20.dp),
-                tint = Color(0xFFCCCCCC),
+                tint = Color(0xFFCCCCCC)
             )
         }
     }
 }
 
-/**
- * 列表为空时的 UI
- */
+// ==================== 空状态 ====================
+
 @Composable
-private fun EmptyFileList() {
+private fun EmptyFileState() {
     Column(
         modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 100.dp),
+            .fillMaxSize()
+            .padding(vertical = 80.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
     ) {
         Icon(
-            painter = painterResource(id = R.drawable.ic_files),
+            painter = painterResource(id = R.drawable.ic_empty_file),
             contentDescription = null,
             modifier = Modifier.size(80.dp),
-            tint = Color(0xFFDDDDDD),
+            tint = Color(0xFFCCCCCC)
         )
         Spacer(modifier = Modifier.height(16.dp))
         Text(
-            text = "暂无文件记录",
+            text = stringResource(id = R.string.files_empty_title),
             fontSize = 16.sp,
-            color = Color(0xFF999999),
-            fontWeight = FontWeight.Medium
+            fontWeight = FontWeight.Bold,
+            color = Color(0xFF999999)
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "从首页打开文档后将显示在此处",
-            fontSize = 13.sp,
+            text = stringResource(id = R.string.files_empty_tip),
+            fontSize = 14.sp,
             color = Color(0xFFBBBBBB),
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(horizontal = 32.dp)
         )
     }
 }

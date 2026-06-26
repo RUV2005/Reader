@@ -1,5 +1,7 @@
 package com.danmo.reader.data.repository
 
+import android.content.Context
+import com.danmo.reader.R
 import com.danmo.reader.data.local.AppDatabase
 import com.danmo.reader.data.local.RecentFileEntity
 import kotlinx.coroutines.flow.Flow
@@ -15,7 +17,7 @@ data class RecentFile(
     val openTimeDisplay: String,
 )
 
-class RecentFileRepository(context: android.content.Context) {
+class RecentFileRepository(private val context: Context) {
     private val dao = AppDatabase.getDatabase(context).recentFileDao()
     private val settingsRepository = SettingsRepository(context)
 
@@ -55,10 +57,10 @@ class RecentFileRepository(context: android.content.Context) {
         val diff = now - timestamp
 
         return when {
-            diff < 60_000 -> "刚刚"
-            diff < 3_600_000 -> "${diff / 60_000}分钟前"
-            diff < 86_400_000 -> "${diff / 3_600_000}小时前"
-            diff < 604_800_000 -> "${diff / 86_400_000}天前"
+            diff < 60_000 -> context.getString(R.string.time_just_now)
+            diff < 3_600_000 -> context.getString(R.string.time_min_ago, diff / 60_000)
+            diff < 86_400_000 -> context.getString(R.string.time_hour_ago, diff / 3_600_000)
+            diff < 604_800_000 -> context.getString(R.string.time_day_ago, diff / 86_400_000)
             else -> {
                 val sdf = SimpleDateFormat("MM-dd", Locale.getDefault())
                 sdf.format(Date(timestamp))

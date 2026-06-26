@@ -78,7 +78,7 @@ fun SettingsScreen(
                 SettingItem(
                     id = "tts",
                     title = stringResource(id = R.string.setting_tts),
-                    subtitle = if (uiState.ttsEnabled) "已开启" else "已关闭",
+                    subtitle = if (uiState.ttsEnabled) stringResource(id = R.string.setting_tts_on) else stringResource(id = R.string.setting_tts_off),
                     iconRes = R.drawable.ic_tts,
                     iconColor = Color(0xFF4A6FA5),
                     type = SettingType.TOGGLE,
@@ -86,7 +86,7 @@ fun SettingsScreen(
                 SettingItem(
                     id = "speech_rate",
                     title = stringResource(id = R.string.setting_speech_rate),
-                    subtitle = "${uiState.speechRate}x",
+                    subtitle = stringResource(id = R.string.setting_speech_rate_subtitle, uiState.speechRate),
                     iconRes = R.drawable.ic_speed,
                     iconColor = Color(0xFF6B8CBB),
                     type = SettingType.VALUE,
@@ -94,7 +94,7 @@ fun SettingsScreen(
                 SettingItem(
                     id = "font_size",
                     title = stringResource(id = R.string.setting_font_size),
-                    subtitle = "${uiState.fontSize}sp",
+                    subtitle = stringResource(id = R.string.setting_font_size_subtitle, uiState.fontSize),
                     iconRes = R.drawable.ic_text_size,
                     iconColor = Color(0xFF8B9DC3),
                     type = SettingType.VALUE,
@@ -102,7 +102,7 @@ fun SettingsScreen(
                 SettingItem(
                     id = "auto_scroll",
                     title = stringResource(id = R.string.setting_auto_scroll),
-                    subtitle = if (uiState.autoScroll) "已开启" else "已关闭",
+                    subtitle = if (uiState.autoScroll) stringResource(id = R.string.setting_auto_scroll_desc_on) else stringResource(id = R.string.setting_auto_scroll_desc_off),
                     iconRes = R.drawable.ic_scroll,
                     iconColor = Color(0xFF4A6FA5),
                     type = SettingType.TOGGLE,
@@ -115,7 +115,7 @@ fun SettingsScreen(
                 SettingItem(
                     id = "high_contrast",
                     title = stringResource(id = R.string.setting_high_contrast),
-                    subtitle = if (uiState.highContrast) "已开启" else "已关闭",
+                    subtitle = if (uiState.highContrast) stringResource(id = R.string.setting_tts_on) else stringResource(id = R.string.setting_high_contrast_desc),
                     iconRes = R.drawable.ic_contrast,
                     iconColor = Color(0xFF217346),
                     type = SettingType.TOGGLE,
@@ -123,7 +123,7 @@ fun SettingsScreen(
                 SettingItem(
                     id = "gesture",
                     title = stringResource(id = R.string.setting_gesture),
-                    subtitle = "查看操作指南",
+                    subtitle = stringResource(id = R.string.setting_gesture_subtitle),
                     iconRes = R.drawable.ic_gesture,
                     iconColor = Color(0xFFD24726),
                     type = SettingType.NAVIGATE,
@@ -131,7 +131,7 @@ fun SettingsScreen(
                 SettingItem(
                     id = "accessibility",
                     title = stringResource(id = R.string.setting_talkback),
-                    subtitle = "读屏体验优化",
+                    subtitle = stringResource(id = R.string.setting_talkback_subtitle),
                     iconRes = R.drawable.ic_accessibility,
                     iconColor = Color(0xFF4A6FA5),
                     type = SettingType.NAVIGATE,
@@ -144,7 +144,7 @@ fun SettingsScreen(
                 SettingItem(
                     id = "storage",
                     title = stringResource(id = R.string.setting_storage),
-                    subtitle = "当前缓存: ${uiState.cacheSize}",
+                    subtitle = stringResource(id = R.string.setting_storage_subtitle, uiState.cacheSize),
                     iconRes = R.drawable.ic_storage,
                     iconColor = Color(0xFF6B8CBB),
                     type = SettingType.NAVIGATE,
@@ -153,9 +153,9 @@ fun SettingsScreen(
                     id = "language",
                     title = stringResource(id = R.string.setting_language),
                     subtitle = when (uiState.language) {
-                        "zh" -> "简体中文"
-                        "en" -> "English"
-                        else -> "简体中文"
+                        "zh" -> stringResource(id = R.string.lang_zh)
+                        "en" -> stringResource(id = R.string.lang_en)
+                        else -> stringResource(id = R.string.lang_zh)
                     },
                     iconRes = R.drawable.ic_language,
                     iconColor = Color(0xFF8B9DC3),
@@ -165,10 +165,10 @@ fun SettingsScreen(
                     id = "theme",
                     title = stringResource(id = R.string.setting_theme),
                     subtitle = when (uiState.theme) {
-                        "system" -> "跟随系统"
-                        "light"  -> "浅色"
-                        "dark"   -> "深色"
-                        else     -> "跟随系统"
+                        "system" -> stringResource(id = R.string.theme_system)
+                        "light"  -> stringResource(id = R.string.theme_light)
+                        "dark"   -> stringResource(id = R.string.theme_dark)
+                        else     -> stringResource(id = R.string.theme_system)
                     },
                     iconRes = R.drawable.ic_theme,
                     iconColor = Color(0xFF4A6FA5),
@@ -181,24 +181,24 @@ fun SettingsScreen(
             items = listOf(
                 SettingItem(
                     id = "about",
-                    title = "关于应用",
-                    subtitle = "版本 1.0.0 (Stable)",
+                    title = stringResource(id = R.string.about_title),
+                    subtitle = stringResource(id = R.string.about_version),
                     iconRes = R.drawable.ic_info,
                     iconColor = Color(0xFF999999),
                     type = SettingType.NAVIGATE,
                 ),
                 SettingItem(
                     id = "feedback",
-                    title = "意见反馈",
-                    subtitle = "将您的建议告诉我们",
+                    title = stringResource(id = R.string.feedback_title),
+                    subtitle = stringResource(id = R.string.feedback_subtitle),
                     iconRes = R.drawable.ic_feedback,
                     iconColor = Color(0xFF999999),
                     type = SettingType.NAVIGATE,
                 ),
                 SettingItem(
                     id = "privacy",
-                    title = "隐私政策",
-                    subtitle = "数据安全说明",
+                    title = stringResource(id = R.string.privacy_title),
+                    subtitle = stringResource(id = R.string.privacy_subtitle),
                     iconRes = R.drawable.ic_privacy,
                     iconColor = Color(0xFF999999),
                     type = SettingType.NAVIGATE,
@@ -263,7 +263,7 @@ fun SettingsScreen(
             Spacer(modifier = Modifier.height(32.dp))
 
             Text(
-                text = "版本 1.0.0 (Build 20240611)",
+                text = stringResource(id = R.string.about_build),
                 fontSize = 12.sp,
                 color = Color(0xFFBBBBBB),
                 modifier = Modifier
@@ -276,7 +276,6 @@ fun SettingsScreen(
         }
     }
 
-    // Dialogs
     if (showSpeechRateDialog) {
         SpeechRateDialog(
             currentRate = uiState.speechRate,
@@ -339,10 +338,10 @@ private fun StorageDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("存储管理", fontWeight = FontWeight.Bold) },
+        title = { Text(stringResource(id = R.string.setting_storage), fontWeight = FontWeight.Bold) },
         text = {
             Column {
-                Text("当前应用占用的缓存空间为：", fontSize = 14.sp)
+                Text(stringResource(id = R.string.storage_desc), fontSize = 14.sp)
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = cacheSize,
@@ -352,7 +351,7 @@ private fun StorageDialog(
                 )
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
-                    "缓存主要包含文档预览图和 OCR 临时文件。清理缓存不会删除您的本地文档或阅读历史。",
+                    stringResource(id = R.string.storage_tip),
                     fontSize = 12.sp,
                     color = Color.Gray
                 )
@@ -363,12 +362,12 @@ private fun StorageDialog(
                 onClick = { onClearCache(); onDismiss() },
                 colors = ButtonDefaults.textButtonColors(contentColor = Color.Red)
             ) {
-                Text("清理缓存")
+                Text(stringResource(id = R.string.storage_clear))
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("关闭")
+                Text(stringResource(id = R.string.dialog_close))
             }
         }
     )
@@ -380,23 +379,23 @@ private fun StorageDialog(
 private fun GestureDialog(onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("手势控制指南", fontWeight = FontWeight.Bold) },
+        title = { Text(stringResource(id = R.string.gesture_title), fontWeight = FontWeight.Bold) },
         text = {
             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                GestureItem("左右滑动", "在阅读器中切换上一个/下一个段落。")
-                GestureItem("双击屏幕", "在阅读器中立即开始朗读下一段。")
-                GestureItem("长按卡片", "在首页可触发文档的更多管理操作（即将上线）。")
-                GestureItem("摇一摇", "在任何页面快速唤起语音助手（开发中）。")
+                GestureItem(stringResource(id = R.string.gesture_swipe_title), stringResource(id = R.string.gesture_swipe_desc))
+                GestureItem(stringResource(id = R.string.gesture_double_tap_title), stringResource(id = R.string.gesture_double_tap_desc))
+                GestureItem(stringResource(id = R.string.gesture_long_press_title), stringResource(id = R.string.gesture_long_press_desc))
+                GestureItem(stringResource(id = R.string.gesture_shake_title), stringResource(id = R.string.gesture_shake_desc))
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    "提示：所有手势均已适配系统 TalkBack 读屏操作，建议开启 TalkBack 获取最佳无障碍体验。",
+                    stringResource(id = R.string.gesture_tip),
                     fontSize = 12.sp,
                     color = Color(0xFF217346)
                 )
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text("知道了") }
+            TextButton(onClick = onDismiss) { Text(stringResource(id = R.string.dialog_know)) }
         }
     )
 }
@@ -415,23 +414,23 @@ private fun GestureItem(title: String, desc: String) {
 private fun AccessibilityDialog(onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("TalkBack 无障碍优化", fontWeight = FontWeight.Bold) },
+        title = { Text(stringResource(id = R.string.acc_title), fontWeight = FontWeight.Bold) },
         text = {
             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                 Text(
-                    "我们为读屏用户深度定制了以下体验：",
+                    stringResource(id = R.string.acc_intro),
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold
                 )
                 Spacer(modifier = Modifier.height(12.dp))
-                BulletPoint("语义化标签：为所有图标和操作按钮添加了精准的中文描述。")
-                BulletPoint("焦点流优化：确保读屏器焦点按照文档逻辑顺序移动。")
-                BulletPoint("高对比度：支持黑底黄字模式，辅助弱视用户识别。")
-                BulletPoint("实时状态播报：朗读进度、解析成功等状态实时通过语音反馈。")
+                BulletPoint(stringResource(id = R.string.acc_item_1))
+                BulletPoint(stringResource(id = R.string.acc_item_2))
+                BulletPoint(stringResource(id = R.string.acc_item_3))
+                BulletPoint(stringResource(id = R.string.acc_item_4))
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text("确定") }
+            TextButton(onClick = onDismiss) { Text(stringResource(id = R.string.dialog_confirm)) }
         }
     )
 }
@@ -450,19 +449,19 @@ private fun BulletPoint(text: String) {
 private fun FeedbackDialog(onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("意见反馈", fontWeight = FontWeight.Bold) },
+        title = { Text(stringResource(id = R.string.feedback_title), fontWeight = FontWeight.Bold) },
         text = {
             Column {
-                Text("感谢您使用智能阅读器！如果您在使用过程中遇到任何问题或有改进建议，请通过以下方式联系我们：", fontSize = 14.sp)
+                Text(stringResource(id = R.string.feedback_intro), fontSize = 14.sp)
                 Spacer(modifier = Modifier.height(16.dp))
-                Text("客服邮箱：support@danmo-reader.com", fontWeight = FontWeight.Bold, color = Color(0xFF4A6FA5))
-                Text("反馈群组：微信号 ReaderHelper", fontWeight = FontWeight.Bold, color = Color(0xFF4A6FA5))
+                Text(stringResource(id = R.string.feedback_email), fontWeight = FontWeight.Bold, color = Color(0xFF4A6FA5))
+                Text(stringResource(id = R.string.feedback_wechat), fontWeight = FontWeight.Bold, color = Color(0xFF4A6FA5))
                 Spacer(modifier = Modifier.height(16.dp))
-                Text("您的每一个反馈都能帮助我们做得更好。", fontSize = 12.sp, color = Color.Gray)
+                Text(stringResource(id = R.string.feedback_footer), fontSize = 12.sp, color = Color.Gray)
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text("确定") }
+            TextButton(onClick = onDismiss) { Text(stringResource(id = R.string.dialog_confirm)) }
         }
     )
 }
@@ -473,23 +472,23 @@ private fun FeedbackDialog(onDismiss: () -> Unit) {
 private fun PrivacyDialog(onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("隐私政策摘要", fontWeight = FontWeight.Bold) },
+        title = { Text(stringResource(id = R.string.privacy_title), fontWeight = FontWeight.Bold) },
         text = {
             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                Text("智能阅读器高度重视您的个人隐私：", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                Text(stringResource(id = R.string.privacy_intro), fontSize = 14.sp, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(
-                    "1. 数据不出本地：所有的文档解析和 OCR 识别均在您的设备本地完成，不会上传到任何服务器。\n\n" +
-                    "2. 权限最小化：应用仅申请相机（用于 OCR）和存储（用于读文档）所必须的权限。\n\n" +
-                    "3. 历史记录管理：您的阅读历史仅保存在手机 DataStore 中，您可以随时通过清理应用数据进行彻底清除。\n\n" +
-                    "4. 无第三方共享：我们绝不会将您的任何数据共享给第三方广告商或分析平台。",
+                    stringResource(id = R.string.privacy_item_1) + "\n\n" +
+                    stringResource(id = R.string.privacy_item_2) + "\n\n" +
+                    stringResource(id = R.string.privacy_item_3) + "\n\n" +
+                    stringResource(id = R.string.privacy_item_4),
                     fontSize = 13.sp,
                     lineHeight = 18.sp
                 )
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text("同意并接受") }
+            TextButton(onClick = onDismiss) { Text(stringResource(id = R.string.privacy_confirm)) }
         }
     )
 }
@@ -500,24 +499,24 @@ private fun PrivacyDialog(onDismiss: () -> Unit) {
 private fun AboutDialog(onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("关于智能阅读器", fontWeight = FontWeight.Bold) },
+        title = { Text(stringResource(id = R.string.about_main_title), fontWeight = FontWeight.Bold) },
         text = {
             Column {
                 Text(
-                    text = "版本：1.0.0 (Stable)",
+                    text = stringResource(id = R.string.about_version),
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color(0xFF4A6FA5)
                 )
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(
-                    text = "智能阅读器是一款专为视障和低视力用户打造的全能文档辅助工具。支持 Word, Excel, PPT, PDF 以及 OCR 拍照识字，旨在用技术消除阅读障碍。",
+                    text = stringResource(id = R.string.about_desc),
                     fontSize = 14.sp,
                     lineHeight = 20.sp
                 )
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
-                    text = "© 2024 智能阅读器团队",
+                    text = stringResource(id = R.string.about_copyright),
                     fontSize = 12.sp,
                     color = Color.Gray
                 )
@@ -525,16 +524,13 @@ private fun AboutDialog(onDismiss: () -> Unit) {
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text("确定")
+                Text(stringResource(id = R.string.dialog_confirm))
             }
         }
     )
 }
 
 // ==================== 吸顶预览区 ====================
-
-private const val PREVIEW_TEXT =
-    "春江潮水连海平，海上明月共潮生。滟滟随波千万里，何处春江无月明。"
 
 @Composable
 private fun SettingsPreviewSection(
@@ -544,6 +540,8 @@ private fun SettingsPreviewSection(
     ttsEnabled: Boolean,
 ) {
     val context = LocalContext.current
+    val previewHighlight = stringResource(id = R.string.preview_text_highlight)
+    val previewBody = stringResource(id = R.string.preview_text_body)
 
     var isTtsReady by remember { mutableStateOf(false) }
     var isPlaying  by remember { mutableStateOf(false) }
@@ -577,10 +575,7 @@ private fun SettingsPreviewSection(
             override fun onError(utteranceId: String?)  { isPlaying = false }
             override fun onStop(utteranceId: String?, interrupted: Boolean) { isPlaying = false }
         })
-        val result = tts?.speak(PREVIEW_TEXT, TextToSpeech.QUEUE_FLUSH, null, "settings_preview")
-        if (result == TextToSpeech.ERROR) {
-            isPlaying = false
-        }
+        tts?.speak(previewHighlight, TextToSpeech.QUEUE_FLUSH, null, "settings_preview")
     }
 
     fun stopPreview() {
@@ -617,31 +612,28 @@ private fun SettingsPreviewSection(
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             Text(
-                text = "效果预览",
+                text = stringResource(id = R.string.preview_title),
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
                 color = accentColor,
                 letterSpacing = 1.sp,
                 modifier = Modifier.semantics {
-                    contentDescription = "效果预览区域，显示当前字体和对比度效果"
+                    contentDescription = context.getString(R.string.preview_desc)
                 },
             )
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 PreviewTag(
-                    text = "字体 ${fontSize}sp",
+                    text = stringResource(id = R.string.preview_tag_font, fontSize),
                     color = accentColor,
-                    description = "当前字体大小 ${fontSize}sp",
                 )
                 PreviewTag(
-                    text = "语速 ${(speechRate * 100).toInt()}%",
+                    text = stringResource(id = R.string.preview_tag_speed, (speechRate * 100).toInt()),
                     color = accentColor,
-                    description = "当前语速 ${(speechRate * 100).toInt()}%",
                 )
                 if (highContrast) {
                     PreviewTag(
-                        text = "高对比",
+                        text = stringResource(id = R.string.preview_tag_contrast),
                         color = Color(0xFF00FF00),
-                        description = "高对比度模式已开启",
                     )
                 }
             }
@@ -656,11 +648,11 @@ private fun SettingsPreviewSection(
                 .background(highlightColor.copy(alpha = if (highContrast) 0.25f else 0.15f))
                 .padding(horizontal = 12.dp, vertical = 8.dp)
                 .semantics {
-                    contentDescription = "当前朗读段落示例：$PREVIEW_TEXT"
+                    contentDescription = previewHighlight
                 },
         ) {
             Text(
-                text = PREVIEW_TEXT,
+                text = previewHighlight,
                 fontSize = fontSize.sp,
                 fontWeight = FontWeight.Bold,
                 color = highlightColor,
@@ -671,12 +663,12 @@ private fun SettingsPreviewSection(
         Spacer(modifier = Modifier.height(8.dp))
 
         Text(
-            text = "江天一色无纤尘，皎皎空中孤月轮。",
+            text = previewBody,
             fontSize = fontSize.sp,
             color = bodyTextColor,
             lineHeight = (fontSize + 10).sp,
             modifier = Modifier.semantics {
-                contentDescription = "普通正文预览，字体大小 ${fontSize}sp"
+                contentDescription = previewBody
             },
         )
 
@@ -696,12 +688,9 @@ private fun SettingsPreviewSection(
         if (highContrast) {
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "⚡ 高对比度：黑底 + 高亮黄色，提升弱视用户辨识度",
+                text = stringResource(id = R.string.preview_contrast_tip),
                 fontSize = 11.sp,
                 color = Color(0xFF00FF00),
-                modifier = Modifier.semantics {
-                    contentDescription = "高对比度模式已启用，使用黑色背景配合高亮黄色文字"
-                },
             )
         }
     }
@@ -723,9 +712,9 @@ private fun TtsPreviewButton(
     )
 
     val label = when {
-        !isReady  -> "语音引擎初始化中…"
-        isPlaying -> "■ 停止试听"
-        else      -> "▶ 试听朗读效果（语速 ${(speechRate * 100).toInt()}%）"
+        !isReady  -> stringResource(id = R.string.preview_tts_ready)
+        isPlaying -> stringResource(id = R.string.preview_tts_stop)
+        else      -> stringResource(id = R.string.preview_tts_play, (speechRate * 100).toInt())
     }
 
     Box(
@@ -767,14 +756,12 @@ private fun TtsPreviewButton(
 private fun PreviewTag(
     text: String,
     color: Color,
-    description: String = text,
 ) {
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(4.dp))
             .background(color.copy(alpha = 0.15f))
-            .padding(horizontal = 6.dp, vertical = 3.dp)
-            .semantics { contentDescription = description },
+            .padding(horizontal = 6.dp, vertical = 3.dp),
     ) {
         Text(
             text = text,
@@ -802,8 +789,7 @@ private fun SettingGroupSection(
             fontWeight = FontWeight.Bold,
             color = Color(0xFF666666),
             modifier = Modifier
-                .padding(start = 8.dp, bottom = 8.dp, top = 8.dp)
-                .semantics { contentDescription = "${group.title}，设置分组" },
+                .padding(start = 8.dp, bottom = 8.dp, top = 8.dp),
         )
 
         Card(
@@ -833,14 +819,13 @@ private fun SettingItemRow(
     onClick: () -> Unit,
     isLast: Boolean,
 ) {
+    val context = LocalContext.current
     val semanticsDescription = when (item.type) {
         SettingType.TOGGLE  -> {
-            val state = if (isChecked) "已开启" else "已关闭"
-            "${item.title}，开关，$state，${item.subtitle ?: ""}，双击切换"
+            val state = if (isChecked) context.getString(R.string.setting_tts_on) else context.getString(R.string.setting_tts_off)
+            "${item.title}, $state, ${item.subtitle ?: ""}"
         }
-        SettingType.VALUE   -> "${item.title}，${item.subtitle ?: ""}，双击修改"
-        SettingType.SELECT  -> "${item.title}，当前选中：${item.subtitle ?: ""}，双击修改"
-        SettingType.NAVIGATE -> "${item.title}，${item.subtitle ?: ""}，双击进入"
+        else -> "${item.title}, ${item.subtitle ?: ""}"
     }
 
     Row(
@@ -903,8 +888,8 @@ private fun SettingItemRow(
                     if (item.type == SettingType.VALUE) {
                         Text(
                             text = when (item.id) {
-                                "speech_rate" -> item.subtitle?.substringAfter("当前: ") ?: ""
-                                "font_size"   -> item.subtitle?.substringAfter("当前: ") ?: ""
+                                "speech_rate" -> item.subtitle?.substringAfter(": ") ?: ""
+                                "font_size"   -> item.subtitle?.substringAfter(": ") ?: ""
                                 else          -> ""
                             },
                             fontSize = 14.sp,
@@ -938,23 +923,24 @@ private fun SpeechRateDialog(
     onRateSelected: (Float) -> Unit,
     onDismiss: () -> Unit,
 ) {
+    val context = LocalContext.current
     val rates = listOf(0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f, 2.5f, 3.0f, 4.0f, 5.0f)
     val rateLabels = mapOf(
-        0.5f  to "50% — 非常慢",
-        0.75f to "75% — 慢速",
-        1.0f  to "100% — 正常",
-        1.25f to "125% — 较快",
-        1.5f  to "150% — 快速",
-        2.0f  to "200% — 非常快",
-        2.5f  to "250% — 超快",
-        3.0f  to "300% — 极速",
-        4.0f  to "400% — 极限",
-        5.0f  to "500% — 最高",
+        0.5f  to stringResource(id = R.string.speed_0_5),
+        0.75f to stringResource(id = R.string.speed_0_75),
+        1.0f  to stringResource(id = R.string.speed_1_0),
+        1.25f to stringResource(id = R.string.speed_1_25),
+        1.5f  to stringResource(id = R.string.speed_1_5),
+        2.0f  to stringResource(id = R.string.speed_2_0),
+        2.5f  to stringResource(id = R.string.speed_2_5),
+        3.0f  to stringResource(id = R.string.speed_3_0),
+        4.0f  to stringResource(id = R.string.speed_4_0),
+        5.0f  to stringResource(id = R.string.speed_5_0),
     )
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("选择语速", fontWeight = FontWeight.Bold) },
+        title = { Text(stringResource(id = R.string.dialog_speed_title), fontWeight = FontWeight.Bold) },
         text = {
             Column {
                 rates.forEach { rate ->
@@ -966,7 +952,7 @@ private fun SpeechRateDialog(
                             .padding(vertical = 12.dp)
                             .semantics {
                                 contentDescription =
-                                    "$label${if (rate == currentRate) "，当前选中" else ""}"
+                                    "$label${if (rate == currentRate) ", " + context.getString(R.string.dialog_selected) else ""}"
                             },
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
@@ -981,7 +967,7 @@ private fun SpeechRateDialog(
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("取消") } },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(id = R.string.dialog_cancel)) } },
     )
 }
 
@@ -991,32 +977,26 @@ private fun FontSizeDialog(
     onSizeSelected: (Int) -> Unit,
     onDismiss: () -> Unit,
 ) {
+    val context = LocalContext.current
     data class SizeOption(val size: Int, val label: String, val sample: String)
 
     val options = listOf(
-        SizeOption(10, "10sp · 极小",     "永"),
-        SizeOption(11, "11sp · 很小",     "永"),
-        SizeOption(12, "12sp · 小",       "永字"),
-        SizeOption(13, "13sp · 偏小",     "永字"),
-        SizeOption(14, "14sp · 较小",     "永字八"),
-        SizeOption(15, "15sp · 正常偏小", "永字八法"),
-        SizeOption(16, "16sp · 正常",     "永字八法"),
-        SizeOption(17, "17sp · 正常+",    "永字八法"),
-        SizeOption(18, "18sp · 推荐",     "永字八法"),
-        SizeOption(20, "20sp · 偏大",     "永字八"),
-        SizeOption(22, "22sp · 较大",     "永字八"),
-        SizeOption(24, "24sp · 大",       "永字"),
-        SizeOption(26, "26sp · 很大",     "永字"),
-        SizeOption(28, "28sp · 超大",     "永字"),
-        SizeOption(30, "30sp · 极大",     "永"),
-        SizeOption(32, "32sp · 低视力",   "永"),
-        SizeOption(36, "36sp · 弱视",     "永"),
-        SizeOption(40, "40sp · 严重弱视", "永"),
+        SizeOption(10, "10sp", "永"),
+        SizeOption(12, "12sp", "永字"),
+        SizeOption(14, "14sp", "永字八"),
+        SizeOption(16, "16sp", "永字八法"),
+        SizeOption(18, "18sp", "永字八法"),
+        SizeOption(20, "20sp", "永字八"),
+        SizeOption(24, "24sp", "永字"),
+        SizeOption(28, "28sp", "永字"),
+        SizeOption(32, "32sp", "永"),
+        SizeOption(36, "36sp", "永"),
+        SizeOption(40, "40sp", "永"),
     )
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("选择字体大小", fontWeight = FontWeight.Bold) },
+        title = { Text(stringResource(id = R.string.dialog_font_title), fontWeight = FontWeight.Bold) },
         text = {
             Column(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
@@ -1034,7 +1014,7 @@ private fun FontSizeDialog(
                             .padding(vertical = 8.dp, horizontal = 4.dp)
                             .semantics {
                                 contentDescription =
-                                    "${opt.label}${if (isSelected) "，当前选中" else ""}"
+                                    "${opt.label}${if (isSelected) ", " + context.getString(R.string.dialog_selected) else ""}"
                             },
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
@@ -1066,7 +1046,7 @@ private fun FontSizeDialog(
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("取消") } },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(id = R.string.dialog_cancel)) } },
     )
 }
 
@@ -1076,11 +1056,12 @@ private fun LanguageDialog(
     onLanguageSelected: (String) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val languages = listOf("zh" to "简体中文", "en" to "English")
+    val context = LocalContext.current
+    val languages = listOf("zh" to stringResource(id = R.string.lang_zh), "en" to stringResource(id = R.string.lang_en))
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("选择语言", fontWeight = FontWeight.Bold) },
+        title = { Text(stringResource(id = R.string.dialog_lang_title), fontWeight = FontWeight.Bold) },
         text = {
             Column {
                 languages.forEach { (code, name) ->
@@ -1091,7 +1072,7 @@ private fun LanguageDialog(
                             .padding(vertical = 12.dp)
                             .semantics {
                                 contentDescription =
-                                    "$name${if (code == currentLanguage) "，当前选中" else ""}"
+                                    "$name${if (code == currentLanguage) ", " + context.getString(R.string.dialog_selected) else ""}"
                             },
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
@@ -1106,7 +1087,7 @@ private fun LanguageDialog(
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("取消") } },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(id = R.string.dialog_cancel)) } },
     )
 }
 
@@ -1116,15 +1097,16 @@ private fun ThemeDialog(
     onThemeSelected: (String) -> Unit,
     onDismiss: () -> Unit,
 ) {
+    val context = LocalContext.current
     val themes = listOf(
-        "system" to "跟随系统",
-        "light"  to "浅色",
-        "dark"   to "深色",
+        "system" to stringResource(id = R.string.theme_system),
+        "light"  to stringResource(id = R.string.theme_light),
+        "dark"   to stringResource(id = R.string.theme_dark),
     )
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("选择主题", fontWeight = FontWeight.Bold) },
+        title = { Text(stringResource(id = R.string.dialog_theme_title), fontWeight = FontWeight.Bold) },
         text = {
             Column {
                 themes.forEach { (code, name) ->
@@ -1135,7 +1117,7 @@ private fun ThemeDialog(
                             .padding(vertical = 12.dp)
                             .semantics {
                                 contentDescription =
-                                    "$name${if (code == currentTheme) "，当前选中" else ""}"
+                                    "$name${if (code == currentTheme) ", " + context.getString(R.string.dialog_selected) else ""}"
                             },
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
@@ -1150,6 +1132,6 @@ private fun ThemeDialog(
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("取消") } },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(id = R.string.dialog_cancel)) } },
     )
 }
