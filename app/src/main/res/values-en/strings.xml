@@ -2,6 +2,7 @@
     <string name="app_name">Smart Reader</string>
     <string name="tab_home">Home</string>
     <string name="tab_files">Files</string>
+    <string name="tab_notes">Notes</string>
     <string name="tab_settings">Settings</string>
 
     <!-- Home -->
@@ -207,7 +208,20 @@
     <string name="ocr_result_title">Result</string>
     <string name="ocr_gallery">Gallery</string>
     <string name="ocr_no_text">No text recognized in the image</string>
-    <string name="ocr_recognizing">Recognizing...</string>
+    <string name="action_save_note">Save to Notes</string>
+    <string name="note_edit_title">Edit &amp; Save</string>
+    <string name="note_default_title">Untitled Note</string>
+    <string name="note_category_label">Select Category</string>
+    <string name="note_title">Title</string>
+    <string name="note_content">Content</string>
+    <string name="note_delete">Delete</string>
+    <string name="note_delete_confirm">Are you sure to delete this note?</string>
+    <string name="note_empty_tip">No notes yet, long press document or scan to add</string>
+
+    <string name="cat_medicine">Medicine</string>
+    <string name="cat_life">Life</string>
+    <string name="cat_work">Work</string>
+    <string name="cat_other">Other</string>
 
     <string name="lang_zh">简体中文</string>
     <string name="lang_en">English</string>

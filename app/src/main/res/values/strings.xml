@@ -2,6 +2,7 @@
     <string name="app_name">智能阅读器</string>
     <string name="tab_home">首页</string>
     <string name="tab_files">文件</string>
+    <string name="tab_notes">便签</string>
     <string name="tab_settings">设置</string>
 
     <!-- 首页 -->
@@ -207,7 +208,20 @@
     <string name="ocr_result_title">识别结果</string>
     <string name="ocr_gallery">相册</string>
     <string name="ocr_no_text">未能在图片中识别到文字</string>
-    <string name="ocr_recognizing">识别中...</string>
+    <string name="action_save_note">保存到便签</string>
+    <string name="note_edit_title">编辑并收藏</string>
+    <string name="note_default_title">未命名便签</string>
+    <string name="note_category_label">选择分类</string>
+    <string name="note_title">标题</string>
+    <string name="note_content">内容</string>
+    <string name="note_delete">删除</string>
+    <string name="note_delete_confirm">确定要删除这条便签吗？</string>
+    <string name="note_empty_tip">暂无便签，长按文档段落或通过扫描可添加</string>
+
+    <string name="cat_medicine">药品</string>
+    <string name="cat_life">生活</string>
+    <string name="cat_work">工作</string>
+    <string name="cat_other">其他</string>
 
     <string name="lang_zh">简体中文</string>
     <string name="lang_en">English</string>

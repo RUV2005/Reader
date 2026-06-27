@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.lifecycleScope
+import com.danmo.reader.collections.CollectionsScreen
 import com.danmo.reader.common.utils.HapticUtils
 import com.danmo.reader.common.utils.LocaleUtils
 import com.danmo.reader.data.local.UriPermissionManager
@@ -66,7 +67,7 @@ private const val TAG = "MainActivity"
  * 主底部导航栏的标签枚举
  */
 enum class MainTab {
-    FILES, HOME, SETTINGS,
+    FILES, HOME, NOTES, SETTINGS,
 }
 
 /**
@@ -92,6 +93,7 @@ data class BottomNavItemData(
 val bottomNavItems = listOf(
     BottomNavItemData(R.string.tab_files, R.drawable.ic_files),
     BottomNavItemData(R.string.tab_home, R.drawable.ic_home),
+    BottomNavItemData(R.string.tab_notes, R.drawable.ic_chapters),
     BottomNavItemData(R.string.tab_settings, R.drawable.ic_settings_nav)
 )
 
@@ -230,6 +232,24 @@ class MainActivity : AppCompatActivity() {
                                                 )
                                             )
                                         }
+                                        MainTab.NOTES -> {
+                                            TopAppBar(
+                                                title = { Text(stringResource(id = R.string.tab_notes), fontSize = 20.sp, fontWeight = FontWeight.Bold) },
+                                                navigationIcon = {
+                                                    IconButton(onClick = { 
+                                                        HapticUtils.triggerTick(this@MainActivity)
+                                                        currentTab = MainTab.HOME 
+                                                    }) {
+                                                        Icon(painterResource(id = R.drawable.ic_back), contentDescription = stringResource(id = R.string.dialog_close))
+                                                    }
+                                                },
+                                                colors = TopAppBarDefaults.topAppBarColors(
+                                                    containerColor = Color(0xFF4A6FA5),
+                                                    titleContentColor = Color.White,
+                                                    navigationIconContentColor = Color.White
+                                                )
+                                            )
+                                        }
                                         MainTab.HOME -> { /* 首页自带 Header */ }
                                     }
                                 }
@@ -240,7 +260,8 @@ class MainActivity : AppCompatActivity() {
                                         selectedTab = when (currentTab) {
                                             MainTab.FILES -> 0
                                             MainTab.HOME -> 1
-                                            MainTab.SETTINGS -> 2
+                                            MainTab.NOTES -> 2
+                                            MainTab.SETTINGS -> 3
                                         },
                                         onTabSelected = { index: Int ->
                                             HapticUtils.triggerTick(this@MainActivity)
@@ -248,7 +269,8 @@ class MainActivity : AppCompatActivity() {
                                             currentTab = when (index) {
                                                 0 -> MainTab.FILES
                                                 1 -> MainTab.HOME
-                                                2 -> MainTab.SETTINGS
+                                                2 -> MainTab.NOTES
+                                                3 -> MainTab.SETTINGS
                                                 else -> MainTab.HOME
                                             }
                                         }
@@ -275,7 +297,7 @@ class MainActivity : AppCompatActivity() {
                                                 text = { Text(stringResource(id = R.string.action_open_new_file), color = Color.White) }
                                             )
                                         }
-                                        MainTab.SETTINGS -> {}
+                                        MainTab.NOTES, MainTab.SETTINGS -> {}
                                     }
                                 }
                             },
@@ -287,7 +309,8 @@ class MainActivity : AppCompatActivity() {
                                         selectedTab = when (currentTab) {
                                             MainTab.FILES -> 0
                                             MainTab.HOME -> 1
-                                            MainTab.SETTINGS -> 2
+                                            MainTab.NOTES -> 2
+                                            MainTab.SETTINGS -> 3
                                         },
                                         onTabSelected = { index: Int ->
                                             HapticUtils.triggerTick(this@MainActivity)
@@ -295,7 +318,8 @@ class MainActivity : AppCompatActivity() {
                                             currentTab = when (index) {
                                                 0 -> MainTab.FILES
                                                 1 -> MainTab.HOME
-                                                2 -> MainTab.SETTINGS
+                                                2 -> MainTab.NOTES
+                                                3 -> MainTab.SETTINGS
                                                 else -> MainTab.HOME
                                             }
                                         }
@@ -436,6 +460,10 @@ class MainActivity : AppCompatActivity() {
                                                     }
                                                 }
                                             )
+
+                                            MainTab.NOTES -> {
+                                                CollectionsScreen()
+                                            }
 
                                             MainTab.SETTINGS -> SettingsScreen()
                                         }

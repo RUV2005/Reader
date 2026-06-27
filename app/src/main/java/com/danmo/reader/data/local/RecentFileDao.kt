@@ -3,6 +3,9 @@ package com.danmo.reader.data.local
 import androidx.room.*
 import kotlinx.coroutines.flow.Flow
 
+import com.danmo.reader.data.local.dao.NoteDao
+import com.danmo.reader.data.local.entity.NoteEntity
+
 @Entity(tableName = "recent_files")
 data class RecentFileEntity(
     @PrimaryKey
@@ -28,9 +31,10 @@ interface RecentFileDao {
     suspend fun deleteAll()
 }
 
-@Database(entities = [RecentFileEntity::class], version = 1)
+@Database(entities = [RecentFileEntity::class, NoteEntity::class], version = 2, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun recentFileDao(): RecentFileDao
+    abstract fun noteDao(): NoteDao
 
     companion object {
         @Volatile
@@ -42,7 +46,9 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "reader_database"
-                ).build()
+                )
+                .fallbackToDestructiveMigration() // 暂时允许破坏性迁移以解决版本升级冲突
+                .build()
                 INSTANCE = instance
                 instance
             }
