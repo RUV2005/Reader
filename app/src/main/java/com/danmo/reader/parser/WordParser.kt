@@ -3,40 +3,43 @@ package com.danmo.reader.parser
 import android.content.Context
 import android.net.Uri
 import androidx.documentfile.provider.DocumentFile
+import com.danmo.reader.common.utils.FileUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import org.apache.poi.xwpf.usermodel.XWPFDocument
 import org.apache.poi.hwpf.HWPFDocument
+import org.apache.poi.hwpf.extractor.WordExtractor
+import org.apache.poi.xwpf.usermodel.XWPFDocument
+import org.apache.poi.xwpf.usermodel.XWPFParagraph
 import java.io.InputStream
 
+// ==================== 数据模型 ====================
+
 /**
- * Word 内容项类型枚举
+ * Word 文档内容的类型枚举
  */
 enum class WordContentType {
-    TEXT,   // 普通段落或标题
-    IMAGE,  // 嵌入图片
-    TABLE   // 结构化表格
+    TEXT, IMAGE, TABLE
 }
 
 /**
- * Word 文档解析出的单个内容项数据
+ * Word 文档单一数据项的封装模型
  */
 data class WordContentData(
-    val type: WordContentType = WordContentType.TEXT,
-    val text: String? = null,                // 文本内容
-    val imagePath: String? = null,           // 如果是图片，存储在缓存中的路径
-    val description: String? = null,         // 图片描述（如有）
-    val tableRows: List<List<String>>? = null, // 如果是表格，存储行列二维列表
-    val styleName: String = "",              // Word 中的样式名
-    val isHeading: Boolean = false,          // 是否识别为标题
-    val headingLevel: Int = 0,               // 标题级别 (1-5)
-    val isBold: Boolean = false,             // 是否加粗
-    val alignment: String = "left",          // 对齐方式
-    val index: Int = 0                       // 在文档中的原始序号
+    val type: WordContentType,
+    val text: String? = null,
+    val imagePath: String? = null,
+    val description: String? = null,
+    val tableRows: List<List<String>>? = null,
+    val styleName: String = "",
+    val isHeading: Boolean = false,
+    val headingLevel: Int = 0,
+    val isBold: Boolean = false,
+    val alignment: String = "left",
+    val index: Int = 0
 )
 
 /**
- * Word 文档解析后的完整结果对象
+ * Word 文档全量解析结果
  */
 data class WordParseResult(
     val fileName: String,
@@ -61,10 +64,11 @@ class WordParser : DocumentParser<WordParseResult> {
                 val documentFile = DocumentFile.fromSingleUri(context, uri)
                 val fileName = documentFile?.name ?: "未知文件"
                 val extension = fileName.substringAfterLast(".", "")
+                val docHash = FileUtils.getUriHash(uri)
 
                 // 2. 打开输入流并开始解析
                 context.contentResolver.openInputStream(uri)?.use { inputStream ->
-                    parseInternal(context, inputStream, fileName, extension)
+                    parseInternal(context, inputStream, fileName, extension, docHash)
                 } ?: ParseResult.Error("无法打开文件输入流")
             } catch (e: Exception) {
                 ParseResult.Error("解析 Word 文档失败: ${e.message}", e)
@@ -79,7 +83,8 @@ class WordParser : DocumentParser<WordParseResult> {
         return withContext(Dispatchers.IO) {
             try {
                 val extension = fileName.substringAfterLast(".", "")
-                parseInternal(null, inputStream, fileName, extension)
+                // 无 URI 时使用随机 Hash
+                parseInternal(null, inputStream, fileName, extension, "temp_${System.currentTimeMillis()}")
             } catch (e: Exception) {
                 ParseResult.Error("解析 Word 文档失败: ${e.message}", e)
             }
@@ -93,13 +98,14 @@ class WordParser : DocumentParser<WordParseResult> {
         context: Context?,
         inputStream: InputStream,
         fileName: String,
-        extension: String
+        extension: String,
+        docHash: String
     ): ParseResult<WordParseResult> {
         return try {
             val contents = when (extension.lowercase()) {
-                "docx" -> parseDocx(context, inputStream)
+                "docx" -> parseDocx(context, inputStream, docHash)
                 "doc" -> parseDoc(inputStream)
-                else -> parseDocx(context, inputStream) // 默认尝试按现代格式解析
+                else -> parseDocx(context, inputStream, docHash) // 默认尝试按现代格式解析
             }
 
             // 自动推断文档标题（通常是第一个识别到的标题）
@@ -122,11 +128,13 @@ class WordParser : DocumentParser<WordParseResult> {
      * 解析现代 .docx 格式 (Office 2007+)
      * 使用 XWPFDocument 引擎，支持流式读取 BodyElements
      */
-    private fun parseDocx(context: Context?, inputStream: InputStream): List<WordContentData> {
+    private fun parseDocx(context: Context?, inputStream: InputStream, docHash: String): List<WordContentData> {
         val contents = mutableListOf<WordContentData>()
         var index = 0
 
         XWPFDocument(inputStream).use { document ->
+            val docCacheDir = if (context != null) FileUtils.getDocCacheDir(context, docHash) else null
+            
             // 关键：遍历 bodyElements 而非 paragraphs，以保持段落和表格的交叉顺序
             for (element in document.bodyElements) {
                 when (element) {
@@ -135,28 +143,32 @@ class WordParser : DocumentParser<WordParseResult> {
                         val text = element.text?.trim() ?: ""
                         
                         // 1. 提取并保存段落中的图片（如有）
-                        if (context != null) {
+                        if (docCacheDir != null) {
+                            var picIndexInPara = 0
                             for (run in element.runs) {
                                 for (pic in run.embeddedPictures) {
                                     val picData = pic.pictureData.data
                                     val ext = pic.pictureData.suggestFileExtension()
-                                    // 保存到应用缓存目录，供 Coil 加载
-                                    val picFile = java.io.File(context.cacheDir, "word_pic_${System.currentTimeMillis()}_${index}.$ext")
-                                    try {
-                                        java.io.FileOutputStream(picFile).use { fos ->
-                                            fos.write(picData)
-                                        }
-                                        contents.add(
-                                            WordContentData(
-                                                type = WordContentType.IMAGE,
-                                                imagePath = picFile.absolutePath,
-                                                description = "文档中的图片",
-                                                index = index++
-                                            )
-                                        )
-                                    } catch (_: Exception) {
-                                        // 图片提取失败不应中断整个解析过程
+                                    // 使用确定性命名：文档Hash + 段落索引 + 段内图片索引
+                                    val fileName = "img_${index}_${picIndexInPara++}.$ext"
+                                    val picFile = java.io.File(docCacheDir, fileName)
+                                    
+                                    if (!picFile.exists()) {
+                                        try {
+                                            java.io.FileOutputStream(picFile).use { fos ->
+                                                fos.write(picData)
+                                            }
+                                        } catch (_: Exception) {}
                                     }
+                                    
+                                    contents.add(
+                                        WordContentData(
+                                            type = WordContentType.IMAGE,
+                                            imagePath = picFile.absolutePath,
+                                            description = "文档中的图片",
+                                            index = index++
+                                        )
+                                    )
                                 }
                             }
                         }
@@ -210,53 +222,51 @@ class WordParser : DocumentParser<WordParseResult> {
     }
 
     /**
-     * 解析旧版 .doc 格式 (Office 97-2003)
-     * 注意：由于旧版库支持有限，此方法主要提取文本流
+     * 解析旧版 .doc 格式 (Word 97-2003)
+     * 仅支持纯文本提取，不支持表格样式和图片
      */
     private fun parseDoc(inputStream: InputStream): List<WordContentData> {
         val contents = mutableListOf<WordContentData>()
         var index = 0
 
         HWPFDocument(inputStream).use { document ->
-            val range = document.range
-            val fullText = range.text()
-
-            // 按 Word 内部特有的段落分隔符进行拆分
+            val extractor = WordExtractor(document)
+            val fullText = extractor.text ?: ""
             val rawParagraphs = fullText.split("\r", "\n", "\u0007")
-                .map { it.trim() }
-                .filter { it.isNotEmpty() }
 
             for (paraText in rawParagraphs) {
-                // 使用启发式正则表达式识别可能的标题和层级
-                val isHeading = paraText.length < 100 &&
+                if (paraText.isNotBlank()) {
+                    // 启发式识别标题（针对旧版文档）
+                    val isHeading = (paraText.length < 50 && 
                         (paraText.matches(Regex("^第[一二三四五六七八九十]+章.*")) ||
                                 paraText.matches(Regex("^\\d+[.、].*")) ||
-                                paraText.matches(Regex("^[一二三四五六七八九十]+[、.].*")))
+                                paraText.matches(Regex("^[一二三四五六七八九十]+[、.].*"))))
 
-                val headingLevel = when {
-                    paraText.matches(Regex("^第[一二三四五六七八九十]+章.*")) -> 1
-                    paraText.matches(Regex("^\\d+\\.\\d+.*")) -> 2
-                    else -> if (isHeading) 1 else 0
-                }
+                    val headingLevel = when {
+                        !isHeading -> 0
+                        paraText.matches(Regex("^第[一二三四五六七八九十]+章.*")) -> 1
+                        paraText.matches(Regex("^\\d+\\.\\d+.*")) -> 2
+                        else -> 3
+                    }
 
-                contents.add(
-                    WordContentData(
-                        type = WordContentType.TEXT,
-                        text = paraText,
-                        styleName = if (isHeading) "Heading$headingLevel" else "Normal",
-                        isHeading = isHeading,
-                        headingLevel = headingLevel,
-                        isBold = isHeading,
-                        index = index++
+                    contents.add(
+                        WordContentData(
+                            type = WordContentType.TEXT,
+                            text = paraText.trim(),
+                            isHeading = isHeading,
+                            headingLevel = headingLevel,
+                            styleName = if (isHeading) "Heading$headingLevel" else "Normal",
+                            index = index++
+                        )
                     )
-                )
+                }
             }
         }
         return contents
     }
 
     /**
-     * 将 POI 枚举转换为内部可读的字符串对齐方式
+     * 辅助工具：转换 POI 对齐方式为 String 描述
      */
     private fun getAlignmentName(alignment: Any?): String {
         if (alignment == null) return "left"
@@ -270,7 +280,7 @@ class WordParser : DocumentParser<WordParseResult> {
     }
 
     /**
-     * 根据样式名推断标题级别
+     * 辅助工具：从样式名中提取标题等级
      */
     private fun extractHeadingLevel(styleName: String): Int {
         return when {

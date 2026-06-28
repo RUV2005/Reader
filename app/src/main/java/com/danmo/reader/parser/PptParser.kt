@@ -3,43 +3,35 @@ package com.danmo.reader.parser
 import android.content.Context
 import android.net.Uri
 import androidx.documentfile.provider.DocumentFile
+import com.danmo.reader.common.utils.FileUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import org.apache.poi.xslf.usermodel.XMLSlideShow
 import org.apache.poi.hslf.usermodel.HSLFSlideShow
-import org.apache.poi.hslf.usermodel.HSLFSlide
-import org.apache.poi.xslf.usermodel.XSLFSlide
-import org.apache.poi.xslf.usermodel.XSLFShape
+import org.apache.poi.hslf.usermodel.HSLFTextShape
+import org.apache.poi.xslf.usermodel.XMLSlideShow
 import org.apache.poi.xslf.usermodel.XSLFTextShape
-import org.apache.poi.xslf.usermodel.XSLFTable
 import java.io.InputStream
 
-/**
- * PPT 幻灯片内容
- */
+// ==================== 数据模型 ====================
+
 data class PptSlideData(
     val slideNumber: Int,
     val title: String,
     val content: List<String>,
     val notes: String = "",
     val layout: String = "",
-    val imagePaths: List<String> = emptyList(),
+    val imagePaths: List<String>,
     val tables: List<List<List<String>>> = emptyList()
 )
 
-/**
- * PPT 解析结果
- */
 data class PptParseResult(
     val fileName: String,
     val slides: List<PptSlideData>,
-    val totalSlides: Int = 0
+    val totalSlides: Int
 )
 
-/**
- * PPT 文档解析器
- * 支持 .ppt (HSLF) 和 .pptx (XSLF) 格式
- */
+// ==================== PPT 解析器 ====================
+
 class PptParser : DocumentParser<PptParseResult> {
 
     override suspend fun parse(context: Context, uri: Uri): ParseResult<PptParseResult> {
@@ -48,9 +40,10 @@ class PptParser : DocumentParser<PptParseResult> {
                 val documentFile = DocumentFile.fromSingleUri(context, uri)
                 val fileName = documentFile?.name ?: "未知文件"
                 val extension = fileName.substringAfterLast(".", "")
+                val docHash = FileUtils.getUriHash(uri)
 
                 context.contentResolver.openInputStream(uri)?.use { inputStream ->
-                    parseInternal(context, inputStream, fileName, extension)
+                    parseInternal(context, inputStream, fileName, extension, docHash)
                 } ?: ParseResult.Error("无法打开文件输入流")
             } catch (e: Exception) {
                 ParseResult.Error("解析 PPT 文档失败: ${e.message}", e)
@@ -62,24 +55,19 @@ class PptParser : DocumentParser<PptParseResult> {
         return withContext(Dispatchers.IO) {
             try {
                 val extension = fileName.substringAfterLast(".", "")
-                parseInternal(null, inputStream, fileName, extension)
+                parseInternal(null, inputStream, fileName, extension, "temp_${System.currentTimeMillis()}")
             } catch (e: Exception) {
                 ParseResult.Error("解析 PPT 文档失败: ${e.message}", e)
             }
         }
     }
 
-    private fun parseInternal(
-        context: Context?,
-        inputStream: InputStream,
-        fileName: String,
-        extension: String
-    ): ParseResult<PptParseResult> {
+    private fun parseInternal(context: Context?, inputStream: InputStream, fileName: String, extension: String, docHash: String): ParseResult<PptParseResult> {
         return try {
             val slides = when (extension.lowercase()) {
-                "pptx" -> parsePptx(context, inputStream)
-                "ppt" -> parsePpt(inputStream)
-                else -> parsePptx(context, inputStream)
+                "pptx" -> parsePptx(context, inputStream, docHash)
+                "ppt" -> parsePpt(context, inputStream, docHash)
+                else -> parsePptx(context, inputStream, docHash)
             }
 
             ParseResult.Success(
@@ -94,228 +82,163 @@ class PptParser : DocumentParser<PptParseResult> {
         }
     }
 
-    /**
-     * 解析 .pptx 格式
-     */
-    private fun parsePptx(context: Context?, inputStream: InputStream): List<PptSlideData> {
+    private fun parsePptx(context: Context?, inputStream: InputStream, docHash: String): List<PptSlideData> {
         val slides = mutableListOf<PptSlideData>()
-
+        val docCacheDir = if (context != null) FileUtils.getDocCacheDir(context, docHash) else null
+        
         XMLSlideShow(inputStream).use { ppt ->
-            val slideList = ppt.slides
-            for (index in slideList.indices) {
-                val slide = slideList[index]
+            ppt.slides.forEachIndexed { index, slide ->
+                val slideNumber = index + 1
                 val title = extractPptxTitle(slide)
-                val content = mutableListOf<String>()
+                val content = extractPptxContent(slide)
                 val notes = extractPptxNotes(slide)
                 val imagePaths = mutableListOf<String>()
                 val tables = mutableListOf<List<List<String>>>()
 
-                for (shape in slide.shapes) {
+                slide.shapes.forEach { shape ->
                     when (shape) {
-                        is XSLFTextShape -> {
-                            val text = shape.text?.trim()
-                            if (!text.isNullOrEmpty()) {
-                                // 按段落拆分
-                                val paragraphs = text.split("\n")
-                                    .map { it.trim() }
-                                    .filter { it.isNotEmpty() }
-                                content.addAll(paragraphs)
-                            }
-                        }
-                        is XSLFTable -> {
+                        is org.apache.poi.xslf.usermodel.XSLFTable -> {
                             val tableData = mutableListOf<List<String>>()
-                            for (row in shape.rows) {
-                                val rowCells = row.cells.map { it.text?.trim() ?: "" }
-                                tableData.add(rowCells)
+                            shape.rows.forEach { row ->
+                                val rowCells = row.cells.map { cell -> cell.text?.trim() ?: "" }
+                                if (rowCells.any { it.isNotEmpty() }) {
+                                    tableData.add(rowCells)
+                                }
                             }
                             if (tableData.isNotEmpty()) {
                                 tables.add(tableData)
                             }
                         }
                         is org.apache.poi.xslf.usermodel.XSLFPictureShape -> {
-                            if (context != null) {
+                            if (docCacheDir != null) {
                                 val picData = shape.pictureData.data
                                 val ext = shape.pictureData.suggestFileExtension()
-                                val picFile = java.io.File(context.cacheDir, "ppt_pic_${System.currentTimeMillis()}_${index}_${imagePaths.size}.$ext")
-                                try {
+                                val picFileName = "ppt_pic_${index}_${imagePaths.size}.$ext"
+                                val picFile = java.io.File(docCacheDir, picFileName)
+                                
+                                if (!picFile.exists()) {
                                     java.io.FileOutputStream(picFile).use { fos ->
                                         fos.write(picData)
                                     }
-                                    imagePaths.add(picFile.absolutePath)
-                                } catch (e: Exception) {
-                                    // 忽略
                                 }
+                                imagePaths.add(picFile.absolutePath)
                             }
+                        }
+                        is XSLFTextShape -> {
+                            // 普通文本框内容已在 extractPptxContent 中处理，此处可扩展其他特殊文本形状
                         }
                     }
                 }
 
-                slides.add(
-                    PptSlideData(
-                        slideNumber = index + 1,
-                        title = title,
-                        content = content.distinct(),
-                        notes = notes,
-                        layout = "",
-                        imagePaths = imagePaths,
-                        tables = tables
-                    )
-                )
+                slides.add(PptSlideData(slideNumber, title, content, notes, "", imagePaths, tables))
             }
         }
-
         return slides
     }
 
-    /**
-     * 解析 .ppt 格式
-     */
-    private fun parsePpt(inputStream: InputStream): List<PptSlideData> {
+    private fun parsePpt(context: Context?, inputStream: InputStream, docHash: String): List<PptSlideData> {
         val slides = mutableListOf<PptSlideData>()
+        val docCacheDir = if (context != null) FileUtils.getDocCacheDir(context, docHash) else null
 
         HSLFSlideShow(inputStream).use { ppt ->
-            val slideList = ppt.slides
-            for (index in slideList.indices) {
-                val slide = slideList[index]
+            ppt.slides.forEachIndexed { index, slide ->
+                val slideNumber = index + 1
                 val title = extractPptTitle(slide)
                 val content = extractPptContent(slide)
                 val notes = extractPptNotes(slide)
+                val imagePaths = mutableListOf<String>()
 
-                slides.add(
-                    PptSlideData(
-                        slideNumber = index + 1,
-                        title = title,
-                        content = content,
-                        notes = notes,
-                        layout = ""
-                    )
-                )
+                slide.shapes.forEach { shape ->
+                    if (shape is org.apache.poi.hslf.usermodel.HSLFPictureShape && docCacheDir != null) {
+                        val picData = shape.pictureData.data
+                        val contentType = shape.pictureData.contentType
+                        val ext = when {
+                            contentType.contains("png", true) -> "png"
+                            contentType.contains("jpeg", true) || contentType.contains("jpg", true) -> "jpg"
+                            else -> "png"
+                        }
+                        val picFileName = "ppt_old_pic_${index}_${imagePaths.size}.$ext"
+                        val picFile = java.io.File(docCacheDir, picFileName)
+                        if (!picFile.exists()) {
+                            java.io.FileOutputStream(picFile).use { fos ->
+                                fos.write(picData)
+                            }
+                        }
+                        imagePaths.add(picFile.absolutePath)
+                    }
+                }
+
+                slides.add(PptSlideData(slideNumber, title, content, notes, "", imagePaths, emptyList()))
             }
         }
-
         return slides
     }
 
-    // ========== PPTX 提取方法 ==========
-
-    private fun extractPptxTitle(slide: XSLFSlide): String {
-        // 尝试从标题占位符获取
+    private fun extractPptxTitle(slide: org.apache.poi.xslf.usermodel.XSLFSlide): String {
+        // 1. 尝试通过 Placeholder 获取
         val titleShape = slide.placeholders.find { it.shapeType?.name?.contains("TITLE") == true }
-        if (titleShape != null) {
-            val text = titleShape.text?.trim()
-            if (!text.isNullOrEmpty()) return text
-        }
+        if (titleShape is XSLFTextShape) return titleShape.text?.trim() ?: ""
 
-        // 从第一个文本框获取（通常第一个是标题）
-        val shapes = slide.shapes
-        for (shape in shapes) {
-            if (shape is XSLFTextShape) {
-                val text = shape.text?.trim()
-                if (!text.isNullOrEmpty()) return text
-            }
-        }
-
-        return "第${slide.slideNumber}页"
+        // 2. 兜底方案：取第一个看起来像标题的文本框
+        return slide.shapes.filterIsInstance<XSLFTextShape>()
+            .firstOrNull { it.text.length < 50 }?.text?.trim() ?: ""
     }
 
-    private fun extractPptxContent(slide: XSLFSlide): List<String> {
+    private fun extractPptxContent(slide: org.apache.poi.xslf.usermodel.XSLFSlide): List<String> {
         val content = mutableListOf<String>()
-
-        for (shape in slide.shapes) {
-            when (shape) {
-                is XSLFTextShape -> {
-                    val text = shape.text?.trim()
-                    if (!text.isNullOrEmpty()) {
-                        // 按段落拆分
-                        val paragraphs = text.split("\n")
-                            .map { it.trim() }
-                            .filter { it.isNotEmpty() }
-                        content.addAll(paragraphs)
-                    }
-                }
-                is XSLFTable -> {
-                    // 表格内容
-                    for (row in shape.rows) {
-                        val rowText = row.cells.map { it.text?.trim() ?: "" }
-                            .filter { it.isNotEmpty() }
-                            .joinToString("，")
-                        if (rowText.isNotEmpty()) {
-                            content.add("表格行：$rowText")
-                        }
-                    }
-                }
+        val title = extractPptxTitle(slide)
+        
+        slide.shapes.filterIsInstance<XSLFTextShape>().forEach { shape ->
+            val text = shape.text?.trim() ?: ""
+            if (text.isNotEmpty() && text != title) {
+                val paragraphs = text.split("\n")
+                content.addAll(paragraphs.filter { it.isNotBlank() })
             }
         }
-
-        return content.distinct()
+        return content
     }
 
-    private fun extractPptxNotes(slide: XSLFSlide): String {
-        return try {
-            val notes = slide.notes
-            if (notes == null) return ""
-
-            val result = StringBuilder()
-            val shapes = notes.shapes
-            for (i in 0 until shapes.size) {
-                val shape = shapes[i]
-                if (shape is XSLFTextShape) {
-                    val text = shape.text?.trim()
-                    if (!text.isNullOrEmpty()) {
-                        result.append(text).append("\n")
-                    }
-                }
+    private fun extractPptxNotes(slide: org.apache.poi.xslf.usermodel.XSLFSlide): String {
+        val notes = slide.notes
+        val result = StringBuilder()
+        notes?.shapes?.filterIsInstance<XSLFTextShape>()?.forEach { shape ->
+            val text = shape.text?.trim() ?: ""
+            if (text.isNotEmpty()) {
+                result.append(text).append("\n")
             }
-            result.toString().trim()
-        } catch (e: Exception) {
-            ""
         }
+        return result.toString().trim()
     }
 
-    // ========== PPT 提取方法 ==========
-
-    private fun extractPptTitle(slide: HSLFSlide): String {
-        val title = slide.title?.trim()
-        return if (!title.isNullOrEmpty()) title else "第${slide.slideNumber + 1}页"
+    private fun extractPptTitle(slide: org.apache.poi.hslf.usermodel.HSLFSlide): String {
+        return slide.title?.trim() ?: ""
     }
 
-    private fun extractPptContent(slide: HSLFSlide): List<String> {
+    private fun extractPptContent(slide: org.apache.poi.hslf.usermodel.HSLFSlide): List<String> {
         val content = mutableListOf<String>()
+        val title = extractPptTitle(slide)
 
-        for (shape in slide.shapes) {
-            if (shape is org.apache.poi.hslf.usermodel.HSLFTextShape) {
-                val text = shape.text?.trim()
-                if (!text.isNullOrEmpty()) {
-                    val paragraphs = text.split("\n")
-                        .map { it.trim() }
-                        .filter { it.isNotEmpty() }
-                    content.addAll(paragraphs)
-                }
+        slide.shapes.filterIsInstance<HSLFTextShape>().forEach { shape ->
+            val text = shape.text?.trim() ?: ""
+            if (text.isNotEmpty() && text != title) {
+                val paragraphs = text.split("\n")
+                content.addAll(paragraphs.filter { it.isNotBlank() })
             }
         }
-
-        return content.distinct()
+        return content
     }
 
-    private fun extractPptNotes(slide: HSLFSlide): String {
-        return try {
-            val notes = slide.notes
-            if (notes == null) return ""
-
-            val result = StringBuilder()
-            val shapes = notes.shapes
-            for (i in 0 until shapes.size) {
-                val shape = shapes[i]
-                if (shape is org.apache.poi.hslf.usermodel.HSLFTextShape) {
-                    val text = shape.text?.trim()
-                    if (!text.isNullOrEmpty()) {
-                        result.append(text).append("\n")
-                    }
+    private fun extractPptNotes(slide: org.apache.poi.hslf.usermodel.HSLFSlide): String {
+        val notes = slide.notes
+        val result = StringBuilder()
+        notes?.textParagraphs?.forEach { paras ->
+            paras.forEach { para ->
+                val text = para.toString().trim()
+                if (text.isNotEmpty()) {
+                    result.append(text).append("\n")
                 }
             }
-            result.toString().trim()
-        } catch (e: Exception) {
-            ""
         }
+        return result.toString().trim()
     }
 }

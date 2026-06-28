@@ -3,18 +3,17 @@ package com.danmo.reader.parser
 import android.content.Context
 import android.net.Uri
 import androidx.documentfile.provider.DocumentFile
+import com.danmo.reader.common.utils.FileUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.apache.poi.ss.usermodel.*
-import org.apache.poi.hssf.usermodel.HSSFWorkbook
 import java.io.InputStream
 import java.text.DecimalFormat
 import java.text.SimpleDateFormat
 import java.util.*
 
-/**
- * Excel 单元格数据
- */
+// ==================== 数据模型 ====================
+
 data class ExcelCell(
     val value: String,
     val rowIndex: Int,
@@ -22,9 +21,6 @@ data class ExcelCell(
     val cellType: String
 )
 
-/**
- * Excel 行数据
- */
 data class ExcelRow(
     val cells: List<String>,
     val rowIndex: Int,
@@ -32,22 +28,16 @@ data class ExcelRow(
     val isTotalRow: Boolean = false
 )
 
-/**
- * Excel 工作表
- */
 data class ExcelSheet(
     val name: String,
     val index: Int,
     val headers: List<String>,
     val rows: List<ExcelRow>,
-    val totalRows: Int = 0,
-    val totalCols: Int = 0,
+    val totalRows: Int,
+    val totalCols: Int,
     val imagePaths: List<String> = emptyList()
 )
 
-/**
- * Excel 解析结果
- */
 data class ExcelParseResult(
     val fileName: String,
     val sheets: List<ExcelSheet>,
@@ -55,23 +45,22 @@ data class ExcelParseResult(
     val totalSheets: Int = 0
 )
 
-/**
- * Excel 文档解析器
- * 支持 .xls (HSSF) 和 .xlsx (XSSF) 格式
- */
+// ==================== Excel 解析器 ====================
+
 class ExcelParser : DocumentParser<ExcelParseResult> {
 
     private val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.CHINA)
-    private val numberFormat = DecimalFormat("#.##")
+    private val numberFormat = DecimalFormat("0.##")
 
     override suspend fun parse(context: Context, uri: Uri): ParseResult<ExcelParseResult> {
         return withContext(Dispatchers.IO) {
             try {
                 val documentFile = DocumentFile.fromSingleUri(context, uri)
                 val fileName = documentFile?.name ?: "未知文件"
+                val docHash = FileUtils.getUriHash(uri)
 
                 context.contentResolver.openInputStream(uri)?.use { inputStream ->
-                    parseInternal(context, inputStream, fileName)
+                    parseInternal(context, inputStream, fileName, docHash)
                 } ?: ParseResult.Error("无法打开文件输入流")
             } catch (e: Exception) {
                 ParseResult.Error("解析 Excel 文档失败: ${e.message}", e)
@@ -82,161 +71,121 @@ class ExcelParser : DocumentParser<ExcelParseResult> {
     override suspend fun parse(inputStream: InputStream, fileName: String): ParseResult<ExcelParseResult> {
         return withContext(Dispatchers.IO) {
             try {
-                parseInternal(null, inputStream, fileName)
+                parseInternal(null, inputStream, fileName, "temp_${System.currentTimeMillis()}")
             } catch (e: Exception) {
                 ParseResult.Error("解析 Excel 文档失败: ${e.message}", e)
             }
         }
     }
 
-    private fun parseInternal(context: Context?, inputStream: InputStream, fileName: String): ParseResult<ExcelParseResult> {
+    private fun parseInternal(context: Context?, inputStream: InputStream, fileName: String, docHash: String): ParseResult<ExcelParseResult> {
         return try {
-            val workbook = WorkbookFactory.create(inputStream)
-            val sheets = mutableListOf<ExcelSheet>()
+            WorkbookFactory.create(inputStream).use { workbook ->
+                val sheets = mutableListOf<ExcelSheet>()
+                for (i in 0 until workbook.numberOfSheets) {
+                    sheets.add(parseSheet(context, workbook.getSheetAt(i), i, docHash))
+                }
 
-            val sheetIterator = workbook.sheetIterator()
-            var index = 0
-            while (sheetIterator.hasNext()) {
-                val sheet = sheetIterator.next()
-                val sheetData = parseSheet(context, sheet, index)
-                sheets.add(sheetData)
-                index++
-            }
-
-            workbook.close()
-
-            ParseResult.Success(
-                ExcelParseResult(
-                    fileName = fileName,
-                    sheets = sheets,
-                    currentSheetIndex = 0,
-                    totalSheets = sheets.size
+                ParseResult.Success(
+                    ExcelParseResult(
+                        fileName = fileName,
+                        sheets = sheets,
+                        currentSheetIndex = 0,
+                        totalSheets = sheets.size
+                    )
                 )
-            )
+            }
         } catch (e: Exception) {
             ParseResult.Error("解析失败: ${e.message}", e)
         }
     }
 
-    private fun parseSheet(context: Context?, sheet: Sheet, sheetIndex: Int): ExcelSheet {
+    private fun parseSheet(context: Context?, sheet: Sheet, sheetIndex: Int, docHash: String): ExcelSheet {
         val rows = mutableListOf<ExcelRow>()
-        var maxCols = 0
-        var headers = listOf<String>()
+        val headers = mutableListOf<String>()
         val imagePaths = mutableListOf<String>()
 
-        // 提取图片
-        if (context != null) {
-            val drawing = sheet.drawingPatriarch
-            if (drawing != null) {
-                try {
-                    val shapes = when (drawing) {
-                        is org.apache.poi.xssf.usermodel.XSSFDrawing -> {
-                            drawing.shapes
-                        }
-                        is org.apache.poi.hssf.usermodel.HSSFPatriarch -> {
-                            drawing.children
-                        }
-                        else -> {
-                            emptyList()
-                        }
-                    }
+        // 1. 提取图片
+        try {
+            val docCacheDir = if (context != null) FileUtils.getDocCacheDir(context, docHash) else null
+            if (docCacheDir != null) {
+                val drawing = sheet.drawingPatriarch
+                val shapes = drawing?.iterator()?.asSequence()?.toList() ?: emptyList()
 
-                    for (shape in shapes) {
-                        if (shape is Picture) {
-                            val picData = shape.pictureData.data
-                            val ext = shape.pictureData.suggestFileExtension()
-                            val picFile = java.io.File(context.cacheDir, "excel_pic_${System.currentTimeMillis()}_${sheetIndex}_${imagePaths.size}.$ext")
-                            try {
-                                java.io.FileOutputStream(picFile).use { fos ->
-                                    fos.write(picData)
-                                }
-                                imagePaths.add(picFile.absolutePath)
-                            } catch (_: Exception) {
-                                // 忽略
+                for (shape in shapes) {
+                    if (shape is Picture) {
+                        val picData = shape.pictureData.data
+                        val ext = shape.pictureData.suggestFileExtension()
+                        val fileName = "excel_pic_${sheetIndex}_${imagePaths.size}.$ext"
+                        val picFile = java.io.File(docCacheDir, fileName)
+                        
+                        if (!picFile.exists()) {
+                            java.io.FileOutputStream(picFile).use { fos ->
+                                fos.write(picData)
                             }
                         }
+                        imagePaths.add(picFile.absolutePath)
                     }
-                } catch (e: Exception) {
-                    // 忽略绘图解析异常
                 }
             }
-        }
+        } catch (_: Exception) {}
 
-        // 遍历所有行
-        val rowIterator = sheet.rowIterator()
-        var rowIndex = 0
-        while (rowIterator.hasNext()) {
-            val row = rowIterator.next()
-            val cells = mutableListOf<String>()
-            var cellCount = 0
-
-            // 遍历行中所有单元格
-            val cellIterator = row.cellIterator()
-            while (cellIterator.hasNext()) {
-                val cell = cellIterator.next()
-                val cellValue = getCellValue(cell)
-                cells.add(cellValue)
-                cellCount++
+        // 2. 提取数据
+        var maxCols = 0
+        for (row in sheet) {
+            val cellValues = mutableListOf<String>()
+            for (i in 0 until row.lastCellNum) {
+                cellValues.add(getCellValue(row.getCell(i)))
             }
+            if (cellValues.size > maxCols) maxCols = cellValues.size
 
-            if (cellCount > maxCols) {
-                maxCols = cellCount
-            }
-
-            // 启发式判断表头（第一行且包含文本）
-            val isHeader = (rowIndex == 0) && cells.any { it.isNotEmpty() } &&
-                    cells.all { it.isEmpty() || !it.matches(Regex("^\\d+\\.?\\d*$")) }
-
-            if (isHeader) {
-                headers = cells.toList()
-            }
-
-            // 判断是否为合计行
-            val isTotalRow = cells.any { cell ->
+            val isHeader = row.rowNum == 0 && cellValues.all { it.isNotEmpty() && !it.matches(Regex("^\\d+\\.?\\d*$")) }
+            val isTotalRow = cellValues.any { cell ->
                 cell.contains("合计") || cell.contains("总计") || cell.contains("SUM") ||
                         cell.contains("平均") || cell.contains("Average", ignoreCase = true)
             }
 
             rows.add(
                 ExcelRow(
-                    cells = cells,
-                    rowIndex = rowIndex,
+                    cells = cellValues,
+                    rowIndex = row.rowNum,
                     isHeader = isHeader,
                     isTotalRow = isTotalRow
                 )
             )
-            rowIndex++
-        }
 
-        // 如果没有检测到表头，生成默认列名
-        if (headers.isEmpty() && maxCols > 0) {
-            headers = (0 until maxCols).map { "第${it + 1}列" }
-        }
-
-        // 统一每行的列数
-        val normalizedRows = rows.map { row ->
-            val paddedCells = row.cells.toMutableList()
-            while (paddedCells.size < maxCols) {
-                paddedCells.add("")
+            if (isHeader) {
+                headers.addAll(cellValues)
             }
-            row.copy(cells = paddedCells.take(maxCols))
+        }
+
+        // 如果没有显式表头，使用默认表头
+        if (headers.isEmpty()) {
+            headers.addAll((0 until maxCols).map { "第${it + 1}列" })
+        }
+
+        // 补齐单元格
+        val paddedRows = rows.map { row ->
+            if (row.cells.size < maxCols) {
+                val paddedCells = row.cells.toMutableList()
+                while (paddedCells.size < maxCols) paddedCells.add("")
+                row.copy(cells = paddedCells)
+            } else row
         }
 
         return ExcelSheet(
             name = sheet.sheetName,
             index = sheetIndex,
             headers = headers,
-            rows = normalizedRows,
-            totalRows = normalizedRows.size,
+            rows = paddedRows,
+            totalRows = paddedRows.size,
             totalCols = maxCols,
             imagePaths = imagePaths
         )
     }
 
-    /**
-     * 获取单元格的字符串值
-     */
-    private fun getCellValue(cell: Cell): String {
+    private fun getCellValue(cell: Cell?): String {
+        if (cell == null) return ""
         return when (cell.cellType) {
             CellType.STRING -> cell.stringCellValue ?: ""
             CellType.NUMERIC -> {
@@ -249,27 +198,26 @@ class ExcelParser : DocumentParser<ExcelParseResult> {
             CellType.BOOLEAN -> cell.booleanCellValue.toString()
             CellType.FORMULA -> {
                 try {
-                    // 尝试获取公式计算结果
-                    when (cell.cachedFormulaResultType) {
-                        CellType.NUMERIC -> numberFormat.format(cell.numericCellValue)
-                        CellType.STRING -> cell.stringCellValue ?: ""
-                        else -> cell.cellFormula ?: ""
-                    }
+                    cell.stringCellValue ?: ""
                 } catch (e: Exception) {
-                    cell.cellFormula ?: ""
+                    try {
+                        numberFormat.format(cell.numericCellValue)
+                    } catch (e2: Exception) {
+                        ""
+                    }
                 }
             }
-            CellType.BLANK -> ""
             else -> ""
         }
     }
 
-    /**
-     * 按列朗读时获取列数据
-     */
-    fun getColumnData(sheet: ExcelSheet, colIndex: Int): List<String> {
-        return sheet.rows.map { row ->
-            row.cells.getOrNull(colIndex) ?: ""
-        }.filter { it.isNotEmpty() }
+    fun getColumnData(excelSheet: ExcelSheet, colIndex: Int): List<String> {
+        val columnData = mutableListOf<String>()
+        for (row in excelSheet.rows) {
+            if (colIndex < row.cells.size) {
+                columnData.add(row.cells[colIndex])
+            }
+        }
+        return columnData
     }
 }

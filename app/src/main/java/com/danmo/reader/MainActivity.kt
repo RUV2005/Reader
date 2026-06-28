@@ -139,6 +139,7 @@ class MainActivity : AppCompatActivity() {
 
         recentFileRepository = RecentFileRepository(this)
         ocrManager = OcrManager(this)
+        com.tom_roush.pdfbox.android.PDFBoxResourceLoader.init(applicationContext)
 
         imagePickerLauncher = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.GetContent()) { uri: Uri? ->
             uri?.let { handleOcrImage(it) }
