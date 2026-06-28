@@ -30,10 +30,6 @@ data class PdfParseResult(
 
 class PdfParser : DocumentParser<PdfParseResult> {
 
-    companion object {
-        private const val PARAGRAPH_SPLIT_THRESHOLD = 20
-    }
-
     override suspend fun parse(context: Context, uri: Uri): ParseResult<PdfParseResult> {
         return withContext(Dispatchers.IO) {
             try {
@@ -67,38 +63,44 @@ class PdfParser : DocumentParser<PdfParseResult> {
                 val pages = mutableListOf<PdfPageData>()
                 val docCacheDir = if (context != null) FileUtils.getDocCacheDir(context, docHash) else null
 
+                val stripper = PDFTextStripper()
+                stripper.sortByPosition = true // 关键：开启位置排序，保证表格内容按行读取
+
                 for (i in 0 until totalPages) {
                     val pageNum = i + 1
-                    val stripper = PDFTextStripper()
                     stripper.startPage = pageNum
                     stripper.endPage = pageNum
+                    
+                    // 获取当前页文本
                     val pageText = stripper.getText(document)?.trim() ?: ""
 
                     // 1. 提取图片
                     val imagePaths = mutableListOf<String>()
                     if (docCacheDir != null) {
-                        val resources = document.getPage(i).resources
-                        for (name in resources.xObjectNames) {
-                            val xObject = resources.getXObject(name)
-                            if (xObject is com.tom_roush.pdfbox.pdmodel.graphics.image.PDImageXObject) {
-                                val bitmap = xObject.image
-                                if (bitmap != null) {
-                                    val picFileName = "pdf_pic_${pageNum}_${imagePaths.size}.png"
-                                    val picFile = java.io.File(docCacheDir, picFileName)
-                                    
-                                    if (!picFile.exists()) {
-                                        java.io.FileOutputStream(picFile).use { fos ->
-                                            bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 90, fos)
+                        try {
+                            val resources = document.getPage(i).resources
+                            for (name in resources.xObjectNames) {
+                                val xObject = resources.getXObject(name)
+                                if (xObject is com.tom_roush.pdfbox.pdmodel.graphics.image.PDImageXObject) {
+                                    val bitmap = xObject.image
+                                    if (bitmap != null) {
+                                        val picFileName = "pdf_pic_${pageNum}_${imagePaths.size}.png"
+                                        val picFile = java.io.File(docCacheDir, picFileName)
+                                        
+                                        if (!picFile.exists()) {
+                                            java.io.FileOutputStream(picFile).use { fos ->
+                                                bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 90, fos)
+                                            }
                                         }
+                                        imagePaths.add(picFile.absolutePath)
                                     }
-                                    imagePaths.add(picFile.absolutePath)
                                 }
                             }
-                        }
+                        } catch (_: Exception) {}
                     }
 
-                    // 2. 智能切分段落
-                    val paragraphs = smartSplitParagraphs(pageText)
+                    // 2. 逻辑化段落切分（针对银行流水优化）
+                    val paragraphs = logicalSplit(pageText)
                     pages.add(PdfPageData(pageNum, paragraphs, imagePaths))
                 }
 
@@ -116,51 +118,48 @@ class PdfParser : DocumentParser<PdfParseResult> {
         }
     }
 
-    private fun smartSplitParagraphs(text: String): List<String> {
+    /**
+     * 逻辑化切分算法
+     * 针对银行流水等表格化 PDF，尝试恢复其横向逻辑
+     */
+    private fun logicalSplit(text: String): List<String> {
         if (text.isBlank()) return emptyList()
 
-        val paragraphs = mutableListOf<String>()
-        val lines = text.split("\n", "\r")
-        var currentPara = StringBuilder()
+        val rawLines = text.split("\n", "\r").filter { it.isNotBlank() }
+        val result = mutableListOf<String>()
 
-        for (line in lines) {
+        for (line in rawLines) {
             val trimmedLine = line.trim()
-            if (trimmedLine.isEmpty()) {
-                if (currentPara.isNotEmpty()) {
-                    paragraphs.add(currentPara.toString())
-                    currentPara = StringBuilder()
-                }
-                continue
-            }
+            
+            // 启发式检测：是否包含大量空格或制表符（表格特征）
+            // 或者是典型的流水行（包含日期格式 YYYY-MM-DD）
+            val isTableLike = line.contains("    ") || 
+                             line.contains("\t") || 
+                             trimmedLine.matches(Regex(".*\\d{4}-\\d{2}-\\d{2}.*")) ||
+                             trimmedLine.matches(Regex(".*\\d{2}/\\d{2}/\\d{4}.*"))
 
-            // 启发式表格行检测
-            val isPossiblyTableRow = line.contains("    ") || line.contains("\t")
-
-            if (isPossiblyTableRow) {
-                if (currentPara.isNotEmpty()) {
-                    paragraphs.add(currentPara.toString())
-                    currentPara = StringBuilder()
-                }
+            if (isTableLike) {
+                // 表格行处理：将多个空格替换为明显的竖线分隔符，辅助 TTS 感知
                 val formattedRow = trimmedLine.replace(Regex("\\s{2,}"), " | ")
-                paragraphs.add("Table Data: $formattedRow")
+                result.add("Table Data: $formattedRow")
             } else {
-                if (currentPara.isNotEmpty()) currentPara.append(" ")
-                currentPara.append(trimmedLine)
-
-                // 如果行末不是标点符号，或者这一行特别短，可能段落还没结束（PDF 换行坑）
-                if (trimmedLine.endsWith(".") || trimmedLine.endsWith("?") || trimmedLine.endsWith("!") ||
-                    trimmedLine.endsWith("。") || trimmedLine.endsWith("？") || trimmedLine.endsWith("！")
-                ) {
-                    paragraphs.add(currentPara.toString())
-                    currentPara = StringBuilder()
+                // 普通段落处理
+                // 如果行末没有终止符，尝试与下一行合并（PDF 自动换行修复）
+                if (result.isNotEmpty() && !result.last().startsWith("Table Data") &&
+                    !isParagraphEnd(result.last())) {
+                    val lastIdx = result.size - 1
+                    result[lastIdx] = result[lastIdx] + " " + trimmedLine
+                } else {
+                    result.add(trimmedLine)
                 }
             }
         }
 
-        if (currentPara.isNotEmpty()) {
-            paragraphs.add(currentPara.toString())
-        }
+        return result
+    }
 
-        return paragraphs
+    private fun isParagraphEnd(text: String): Boolean {
+        val endChars = listOf('.', '?', '!', '。', '？', '！', ';', '；')
+        return text.isNotEmpty() && endChars.contains(text.last())
     }
 }
