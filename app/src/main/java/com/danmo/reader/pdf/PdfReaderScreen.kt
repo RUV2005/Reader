@@ -182,6 +182,7 @@ fun PdfReaderScreen(
     }
 
     val topBar: @Composable () -> Unit = {
+        val onPrimaryColor = MaterialTheme.colorScheme.onPrimary
         TopAppBar(
             title = {
                 Column {
@@ -190,11 +191,12 @@ fun PdfReaderScreen(
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
+                        color = onPrimaryColor
                     )
                     Text(
                         text = String.format(java.util.Locale.getDefault(), pageFormat, currentPageIndex + 1, document.totalPages),
                         fontSize = 13.sp,
-                        color = Color.White.copy(alpha = 0.8f),
+                        color = onPrimaryColor.copy(alpha = 0.8f),
                     )
                 }
             },
@@ -209,6 +211,7 @@ fun PdfReaderScreen(
                         painter = painterResource(id = R.drawable.ic_back),
                         contentDescription = stringResource(id = R.string.dialog_close),
                         modifier = Modifier.size(24.dp),
+                        tint = onPrimaryColor
                     )
                 }
             },
@@ -220,14 +223,15 @@ fun PdfReaderScreen(
                         painter = painterResource(id = R.drawable.ic_settings),
                         contentDescription = stringResource(id = R.string.tab_settings),
                         modifier = Modifier.size(24.dp),
+                        tint = onPrimaryColor
                     )
                 }
             },
             colors = TopAppBarDefaults.topAppBarColors(
                 containerColor = MaterialTheme.colorScheme.primary,
-                titleContentColor = Color.White,
-                navigationIconContentColor = Color.White,
-                actionIconContentColor = Color.White,
+                titleContentColor = onPrimaryColor,
+                navigationIconContentColor = onPrimaryColor,
+                actionIconContentColor = onPrimaryColor,
             ),
         )
     }

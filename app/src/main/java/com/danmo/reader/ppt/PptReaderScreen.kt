@@ -174,6 +174,7 @@ fun PptReaderScreen(
     }
 
     val topBar: @Composable () -> Unit = {
+        val onPrimaryColor = MaterialTheme.colorScheme.onPrimary
         TopAppBar(
             title = {
                 Column {
@@ -182,11 +183,12 @@ fun PptReaderScreen(
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
+                        color = onPrimaryColor
                     )
                     Text(
                         text = stringResource(id = R.string.reader_page_format, currentSlideIndex + 1, document.totalSlides),
                         fontSize = 13.sp,
-                        color = Color.White.copy(alpha = 0.8f),
+                        color = onPrimaryColor.copy(alpha = 0.8f),
                     )
                 }
             },
@@ -201,6 +203,7 @@ fun PptReaderScreen(
                         painter = painterResource(id = R.drawable.ic_back),
                         contentDescription = stringResource(id = R.string.dialog_close),
                         modifier = Modifier.size(24.dp),
+                        tint = onPrimaryColor
                     )
                 }
             },
@@ -217,6 +220,7 @@ fun PptReaderScreen(
                         ),
                         contentDescription = null,
                         modifier = Modifier.size(24.dp),
+                        tint = onPrimaryColor
                     )
                 }
                 IconButton(
@@ -229,14 +233,15 @@ fun PptReaderScreen(
                         painter = painterResource(id = R.drawable.ic_settings),
                         contentDescription = null,
                         modifier = Modifier.size(24.dp),
+                        tint = onPrimaryColor
                     )
                 }
             },
             colors = TopAppBarDefaults.topAppBarColors(
                 containerColor = MaterialTheme.colorScheme.primary,
-                titleContentColor = Color.White,
-                navigationIconContentColor = Color.White,
-                actionIconContentColor = Color.White,
+                titleContentColor = onPrimaryColor,
+                navigationIconContentColor = onPrimaryColor,
+                actionIconContentColor = onPrimaryColor,
             ),
         )
     }

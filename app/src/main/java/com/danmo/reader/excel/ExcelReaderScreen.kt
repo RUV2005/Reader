@@ -215,11 +215,12 @@ fun ExcelReaderScreen(
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
+                        color = MaterialTheme.colorScheme.onPrimary // 关键修复
                     )
                     Text(
                         text = stringResource(id = R.string.excel_sheet_label, document.sheetName),
                         fontSize = 13.sp,
-                        color = Color.White.copy(alpha = 0.8f),
+                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f),
                     )
                 }
             },
@@ -234,6 +235,7 @@ fun ExcelReaderScreen(
                         painter = painterResource(id = R.drawable.ic_back),
                         contentDescription = stringResource(id = R.string.dialog_close),
                         modifier = Modifier.size(24.dp),
+                        tint = MaterialTheme.colorScheme.onPrimary
                     )
                 }
             },
@@ -248,6 +250,7 @@ fun ExcelReaderScreen(
                         painter = painterResource(id = R.drawable.ic_info),
                         contentDescription = null,
                         modifier = Modifier.size(24.dp),
+                        tint = MaterialTheme.colorScheme.onPrimary
                     )
                 }
                 IconButton(
@@ -260,14 +263,15 @@ fun ExcelReaderScreen(
                         painter = painterResource(id = R.drawable.ic_settings),
                         contentDescription = null,
                         modifier = Modifier.size(24.dp),
+                        tint = MaterialTheme.colorScheme.onPrimary
                     )
                 }
             },
             colors = TopAppBarDefaults.topAppBarColors(
                 containerColor = MaterialTheme.colorScheme.primary,
-                titleContentColor = Color.White,
-                navigationIconContentColor = Color.White,
-                actionIconContentColor = Color.White,
+                titleContentColor = MaterialTheme.colorScheme.onPrimary,
+                navigationIconContentColor = MaterialTheme.colorScheme.onPrimary,
+                actionIconContentColor = MaterialTheme.colorScheme.onPrimary,
             ),
         )
     }

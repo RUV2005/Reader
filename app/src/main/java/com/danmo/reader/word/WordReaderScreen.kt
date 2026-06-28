@@ -152,11 +152,12 @@ fun WordReaderScreen(
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
+                        color = MaterialTheme.colorScheme.onPrimary // 关键修复：使用动态对比色
                     )
                     Text(
                         text = String.format(java.util.Locale.getDefault(), posFormat, currentIndex + 1, document.contents.size),
                         fontSize = 13.sp,
-                        color = Color.White.copy(alpha = 0.8f),
+                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f),
                     )
                 }
             },
@@ -171,6 +172,7 @@ fun WordReaderScreen(
                         painter = painterResource(id = R.drawable.ic_back),
                         contentDescription = stringResource(id = R.string.reader_back_tip),
                         modifier = Modifier.size(24.dp),
+                        tint = MaterialTheme.colorScheme.onPrimary
                     )
                 }
             },
@@ -182,14 +184,15 @@ fun WordReaderScreen(
                         painter = painterResource(id = R.drawable.ic_settings),
                         contentDescription = stringResource(id = R.string.tab_settings),
                         modifier = Modifier.size(24.dp),
+                        tint = MaterialTheme.colorScheme.onPrimary
                     )
                 }
             },
             colors = TopAppBarDefaults.topAppBarColors(
                 containerColor = MaterialTheme.colorScheme.primary,
-                titleContentColor = Color.White,
-                navigationIconContentColor = Color.White,
-                actionIconContentColor = Color.White,
+                titleContentColor = MaterialTheme.colorScheme.onPrimary,
+                navigationIconContentColor = MaterialTheme.colorScheme.onPrimary,
+                actionIconContentColor = MaterialTheme.colorScheme.onPrimary,
             ),
         )
     }
