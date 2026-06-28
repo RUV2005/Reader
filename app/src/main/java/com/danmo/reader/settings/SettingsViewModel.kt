@@ -85,6 +85,11 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         repository.setTheme(theme)
     }
 
+    fun resetToDefaults() = viewModelScope.launch {
+        repository.resetToDefaults()
+        updateCacheSize() // 同步刷新
+    }
+
     /**
      * 计算并更新当前缓存大小
      */

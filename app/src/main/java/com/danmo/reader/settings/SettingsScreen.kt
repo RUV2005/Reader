@@ -48,6 +48,7 @@ enum class SettingType {
 }
 
 data class SettingGroup(
+    val id: String,
     val title: String,
     val items: List<SettingItem>,
 )
@@ -70,9 +71,13 @@ fun SettingsScreen(
     var showAccessibilityDialog by remember { mutableStateOf(false) }
     var showFeedbackDialog    by remember { mutableStateOf(false) }
     var showPrivacyDialog     by remember { mutableStateOf(false) }
+    var showResetConfirm      by remember { mutableStateOf(false) }
+    
+    var showHelpDialog        by remember { mutableStateOf<Pair<String, String>?>(null) }
 
     val settingGroups = listOf(
         SettingGroup(
+            id = "reading",
             title = stringResource(id = R.string.group_reading),
             items = listOf(
                 SettingItem(
@@ -110,6 +115,7 @@ fun SettingsScreen(
             ),
         ),
         SettingGroup(
+            id = "accessibility",
             title = stringResource(id = R.string.group_accessibility),
             items = listOf(
                 SettingItem(
@@ -139,6 +145,7 @@ fun SettingsScreen(
             ),
         ),
         SettingGroup(
+            id = "general",
             title = stringResource(id = R.string.group_general),
             items = listOf(
                 SettingItem(
@@ -177,6 +184,7 @@ fun SettingsScreen(
             ),
         ),
         SettingGroup(
+            id = "about",
             title = stringResource(id = R.string.group_about),
             items = listOf(
                 SettingItem(
@@ -206,6 +214,11 @@ fun SettingsScreen(
             ),
         ),
     )
+
+    val helpTtsTitle = stringResource(id = R.string.help_tts_title)
+    val helpTtsDesc = stringResource(id = R.string.help_tts_desc)
+    val helpContrastTitle = stringResource(id = R.string.help_contrast_title)
+    val helpContrastDesc = stringResource(id = R.string.help_contrast_desc)
 
     Column(
         modifier = Modifier
@@ -252,6 +265,12 @@ fun SettingsScreen(
                             "privacy"       -> showPrivacyDialog = true
                         }
                     },
+                    onHelpClick = { groupId ->
+                        when (groupId) {
+                            "reading" -> showHelpDialog = helpTtsTitle to helpTtsDesc
+                            "accessibility" -> showHelpDialog = helpContrastTitle to helpContrastDesc
+                        }
+                    },
                     toggleStates = mapOf(
                         "tts"           to uiState.ttsEnabled,
                         "auto_scroll"   to uiState.autoScroll,
@@ -259,6 +278,11 @@ fun SettingsScreen(
                     ),
                 )
             }
+
+            Spacer(modifier = Modifier.height(24.dp))
+            
+            // 恢复默认设置按钮
+            ResetDefaultsButton { showResetConfirm = true }
 
             Spacer(modifier = Modifier.height(32.dp))
 
@@ -274,6 +298,44 @@ fun SettingsScreen(
             
             Spacer(modifier = Modifier.height(80.dp))
         }
+    }
+
+    // Dialogs
+    if (showResetConfirm) {
+        AlertDialog(
+            onDismissRequest = { showResetConfirm = false },
+            title = { Text(stringResource(id = R.string.setting_reset), fontWeight = FontWeight.Bold) },
+            text = { Text(stringResource(id = R.string.setting_reset_confirm)) },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.resetToDefaults()
+                        showResetConfirm = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
+                ) {
+                    Text(stringResource(id = R.string.dialog_confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showResetConfirm = false }) {
+                    Text(stringResource(id = R.string.dialog_cancel))
+                }
+            }
+        )
+    }
+    
+    showHelpDialog?.let { (title, desc) ->
+        AlertDialog(
+            onDismissRequest = { showHelpDialog = null },
+            title = { Text(title, fontWeight = FontWeight.Bold) },
+            text = { Text(desc) },
+            confirmButton = {
+                TextButton(onClick = { showHelpDialog = null }) {
+                    Text(stringResource(id = R.string.dialog_know))
+                }
+            }
+        )
     }
 
     if (showSpeechRateDialog) {
@@ -325,6 +387,45 @@ fun SettingsScreen(
     }
     if (showPrivacyDialog) {
         PrivacyDialog(onDismiss = { showPrivacyDialog = false })
+    }
+}
+
+@Composable
+private fun ResetDefaultsButton(onClick: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                painter = painterResource(id = R.drawable.ic_close),
+                contentDescription = null,
+                tint = Color.Red,
+                modifier = Modifier.size(24.dp)
+            )
+            Spacer(modifier = Modifier.width(16.dp))
+            Column {
+                Text(
+                    text = stringResource(id = R.string.setting_reset),
+                    color = Color.Red,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp
+                )
+                Text(
+                    text = stringResource(id = R.string.setting_reset_desc),
+                    color = Color.Gray,
+                    fontSize = 12.sp
+                )
+            }
+        }
     }
 }
 
@@ -540,8 +641,18 @@ private fun SettingsPreviewSection(
     ttsEnabled: Boolean,
 ) {
     val context = LocalContext.current
-    val previewHighlight = stringResource(id = R.string.preview_text_highlight)
-    val previewBody = stringResource(id = R.string.preview_text_body)
+    
+    val scenarioMedicine = stringResource(id = R.string.preview_scenario_medicine)
+    val scenarioCourier = stringResource(id = R.string.preview_scenario_courier)
+    
+    // 动态轮播预览内容
+    var currentScenario by remember { mutableStateOf(scenarioMedicine) }
+    LaunchedEffect(Unit) {
+        while(true) {
+            kotlinx.coroutines.delay(4000)
+            currentScenario = if (currentScenario == scenarioMedicine) scenarioCourier else scenarioMedicine
+        }
+    }
 
     var isTtsReady by remember { mutableStateOf(false) }
     var isPlaying  by remember { mutableStateOf(false) }
@@ -575,7 +686,7 @@ private fun SettingsPreviewSection(
             override fun onError(utteranceId: String?)  { isPlaying = false }
             override fun onStop(utteranceId: String?, interrupted: Boolean) { isPlaying = false }
         })
-        tts?.speak(previewHighlight, TextToSpeech.QUEUE_FLUSH, null, "settings_preview")
+        tts?.speak(currentScenario, TextToSpeech.QUEUE_FLUSH, null, "settings_preview")
     }
 
     fun stopPreview() {
@@ -585,19 +696,19 @@ private fun SettingsPreviewSection(
 
     val bgColor by animateColorAsState(
         targetValue = if (highContrast) Color(0xFF000000) else Color(0xFF1E2A3A),
-        animationSpec = tween(300), label = "previewBg",
+        animationSpec = tween(500), label = "previewBg",
     )
     val bodyTextColor by animateColorAsState(
         targetValue = if (highContrast) Color(0xFFFFFFFF) else Color(0xFFDDDDDD),
-        animationSpec = tween(300), label = "previewBody",
+        animationSpec = tween(500), label = "previewBody",
     )
     val accentColor by animateColorAsState(
         targetValue = if (highContrast) Color(0xFF00FF00) else Color(0xFF6B8CBB),
-        animationSpec = tween(300), label = "previewAccent",
+        animationSpec = tween(500), label = "previewAccent",
     )
     val highlightColor by animateColorAsState(
         targetValue = if (highContrast) Color(0xFFFFFF00) else Color(0xFFFFD966),
-        animationSpec = tween(300), label = "previewHighlight",
+        animationSpec = tween(500), label = "previewHighlight",
     )
 
     Column(
@@ -648,29 +759,17 @@ private fun SettingsPreviewSection(
                 .background(highlightColor.copy(alpha = if (highContrast) 0.25f else 0.15f))
                 .padding(horizontal = 12.dp, vertical = 8.dp)
                 .semantics {
-                    contentDescription = previewHighlight
+                    contentDescription = currentScenario
                 },
         ) {
             Text(
-                text = previewHighlight,
+                text = currentScenario,
                 fontSize = fontSize.sp,
                 fontWeight = FontWeight.Bold,
                 color = highlightColor,
                 lineHeight = (fontSize + 10).sp,
             )
         }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Text(
-            text = previewBody,
-            fontSize = fontSize.sp,
-            color = bodyTextColor,
-            lineHeight = (fontSize + 10).sp,
-            modifier = Modifier.semantics {
-                contentDescription = previewBody
-            },
-        )
 
         if (ttsEnabled) {
             Spacer(modifier = Modifier.height(10.dp))
@@ -776,6 +875,7 @@ private fun PreviewTag(
 private fun SettingGroupSection(
     group: SettingGroup,
     onItemClick: (SettingItem) -> Unit,
+    onHelpClick: (String) -> Unit,
     toggleStates: Map<String, Boolean>,
 ) {
     Column(
@@ -783,14 +883,31 @@ private fun SettingGroupSection(
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp),
     ) {
-        Text(
-            text = group.title,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color(0xFF666666),
-            modifier = Modifier
-                .padding(start = 8.dp, bottom = 8.dp, top = 8.dp),
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = group.title,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF666666),
+                modifier = Modifier.padding(start = 8.dp, bottom = 8.dp, top = 8.dp),
+            )
+            
+            // 只有特定组显示帮助按钮
+            if (group.id == "reading" || group.id == "accessibility") {
+                 IconButton(onClick = { onHelpClick(group.id) }) {
+                     Icon(
+                         painter = painterResource(id = R.drawable.ic_info),
+                         contentDescription = "查看帮助",
+                         modifier = Modifier.size(16.dp),
+                         tint = Color.Gray
+                     )
+                 }
+            }
+        }
 
         Card(
             modifier = Modifier.fillMaxWidth(),

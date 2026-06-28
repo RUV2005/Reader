@@ -92,6 +92,18 @@ class SettingsRepository(private val context: Context) {
         context.dataStore.edit { it[KEY_THEME] = theme }
     }
 
+    suspend fun resetToDefaults() {
+        context.dataStore.edit {
+            it[KEY_TTS_ENABLED] = DEFAULT_TTS_ENABLED
+            it[KEY_SPEECH_RATE] = DEFAULT_SPEECH_RATE
+            it[KEY_FONT_SIZE] = DEFAULT_FONT_SIZE
+            it[KEY_AUTO_SCROLL] = DEFAULT_AUTO_SCROLL
+            it[KEY_HIGH_CONTRAST] = DEFAULT_HIGH_CONTRAST
+            it[KEY_LANGUAGE] = DEFAULT_LANGUAGE
+            it[KEY_THEME] = DEFAULT_THEME
+        }
+    }
+
     // ── 工具 ──────────────────────────────────────────────
 
     /** DataStore 文件损坏时静默降级，返回空 Preferences（使用默认值）。 */

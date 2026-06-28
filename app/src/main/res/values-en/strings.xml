@@ -208,6 +208,7 @@
     <string name="ocr_result_title">Result</string>
     <string name="ocr_gallery">Gallery</string>
     <string name="ocr_no_text">No text recognized in the image</string>
+
     <string name="action_save_note">Save to Notes</string>
     <string name="note_edit_title">Edit &amp; Save</string>
     <string name="note_default_title">Untitled Note</string>
@@ -228,4 +229,17 @@
     <string name="theme_system">Follow System</string>
     <string name="theme_light">Light</string>
     <string name="theme_dark">Dark</string>
+
+    <!-- Enhancements -->
+    <string name="setting_reset">Restore Defaults</string>
+    <string name="setting_reset_desc">Reset all parameters to system recommended values</string>
+    <string name="setting_reset_confirm">Are you sure you want to reset all settings? This cannot be undone.</string>
+
+    <string name="preview_scenario_medicine">Cold Medicine: Take with warm water, 1 pack at a time, 3 times a day. Store in a cool place.</string>
+    <string name="preview_scenario_courier">SF Express: Your package has arrived at Hive, code 4-1-2038, please pick it up soon.</string>
+
+    <string name="help_tts_title">About TTS</string>
+    <string name="help_tts_desc">When enabled, the app automatically recognizes and broadcasts document content. You can adjust the speed and auto-scroll for the best experience.</string>
+    <string name="help_contrast_title">About High Contrast</string>
+    <string name="help_contrast_desc">This mode is designed for users with low vision. It uses high-contrast schemes (like yellow on black) to highlight text and reduce background noise.</string>
 </resources>

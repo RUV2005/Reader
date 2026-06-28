@@ -208,6 +208,7 @@
     <string name="ocr_result_title">识别结果</string>
     <string name="ocr_gallery">相册</string>
     <string name="ocr_no_text">未能在图片中识别到文字</string>
+
     <string name="action_save_note">保存到便签</string>
     <string name="note_edit_title">编辑并收藏</string>
     <string name="note_default_title">未命名便签</string>
@@ -228,4 +229,17 @@
     <string name="theme_system">跟随系统</string>
     <string name="theme_light">浅色</string>
     <string name="theme_dark">深色</string>
+
+    <!-- 优化新增 -->
+    <string name="setting_reset">恢复默认设置</string>
+    <string name="setting_reset_desc">将所有阅读和显示参数还原至系统推荐值</string>
+    <string name="setting_reset_confirm">确定要重置所有设置吗？该操作不可撤销。</string>
+
+    <string name="preview_scenario_medicine">感冒灵颗粒：开水冲服，一次1袋，一日3次。请存放在阴凉处。</string>
+    <string name="preview_scenario_courier">顺丰快递：您的包裹已到达丰巢，取件码 4-1-2038，请尽快取走。</string>
+
+    <string name="help_tts_title">关于语音朗读</string>
+    <string name="help_tts_desc">开启后，应用会自动识别并播报文档内容。您可以调节语速和自动滚动，以获得最舒适的听读体验。</string>
+    <string name="help_contrast_title">关于高对比度</string>
+    <string name="help_contrast_desc">此模式专门为弱视用户设计。使用极高对比度的配色方案（如黑底黄字）来突出文本，减少背景干扰。</string>
 </resources>

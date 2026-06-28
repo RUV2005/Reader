@@ -10,6 +10,9 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.compose.animation.*
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -80,6 +83,7 @@ sealed class Screen {
     data class PdfReader(val doc: PdfDocument) : Screen()
     data class OcrResult(val text: String, val blocks: List<String>) : Screen()
     data object CameraCapture : Screen()
+    data object Settings : Screen()
 }
 
 /**
@@ -252,10 +256,31 @@ class MainActivity : AppCompatActivity() {
                                         }
                                         MainTab.HOME -> { /* 首页自带 Header */ }
                                     }
+                                } else if (topScreen is Screen.Settings) {
+                                    TopAppBar(
+                                        title = { Text(stringResource(id = R.string.tab_settings), fontSize = 20.sp, fontWeight = FontWeight.Bold) },
+                                        navigationIcon = {
+                                            IconButton(onClick = { 
+                                                HapticUtils.triggerTick(this@MainActivity)
+                                                popScreen()
+                                            }) {
+                                                Icon(painterResource(id = R.drawable.ic_back), contentDescription = stringResource(id = R.string.dialog_close))
+                                            }
+                                        },
+                                        colors = TopAppBarDefaults.topAppBarColors(
+                                            containerColor = Color(0xFF4A6FA5),
+                                            titleContentColor = Color.White,
+                                            navigationIconContentColor = Color.White
+                                        )
+                                    )
                                 }
                             },
                             bottomBar = {
-                                if (!isLandscape && topScreen == null) {
+                                AnimatedVisibility(
+                                    visible = !isLandscape && topScreen == null,
+                                    enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+                                    exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
+                                ) {
                                     BottomNavigationBar(
                                         selectedTab = when (currentTab) {
                                             MainTab.FILES -> 0
@@ -327,43 +352,85 @@ class MainActivity : AppCompatActivity() {
                                 }
 
                                 Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
-                                    when {
-                                        topScreen != null -> when (topScreen) {
+                                    AnimatedContent(
+                                        targetState = topScreen ?: currentTab,
+                                        transitionSpec = {
+                                            val animationDuration = 350
+                                            val easing = FastOutSlowInEasing
+
+                                            if (targetState is Screen && initialState !is Screen) {
+                                                // 深度入场：从右侧推入并伴随轻微缩放
+                                                (slideInHorizontally(
+                                                    initialOffsetX = { it },
+                                                    animationSpec = tween(animationDuration, easing = easing)
+                                                ) + fadeIn()).togetherWith(
+                                                    slideOutHorizontally(
+                                                        targetOffsetX = { -it / 3 },
+                                                        animationSpec = tween(animationDuration, easing = easing)
+                                                    ) + fadeOut()
+                                                )
+                                            } else if (initialState is Screen && targetState !is Screen) {
+                                                // 回退退出：向右侧推出
+                                                (slideInHorizontally(
+                                                    initialOffsetX = { -it / 3 },
+                                                    animationSpec = tween(animationDuration, easing = easing)
+                                                ) + fadeIn()).togetherWith(
+                                                    slideOutHorizontally(
+                                                        targetOffsetX = { it },
+                                                        animationSpec = tween(animationDuration, easing = easing)
+                                                    ) + fadeOut()
+                                                )
+                                            } else {
+                                                // Tab 左右滑动：根据 Tab 索引决定方向
+                                                val fromIndex = (initialState as? MainTab)?.ordinal ?: 0
+                                                val toIndex = (targetState as? MainTab)?.ordinal ?: 0
+                                                
+                                                if (toIndex > fromIndex) {
+                                                    (slideInHorizontally(initialOffsetX = { it }, animationSpec = tween(250)) + fadeIn()).togetherWith(
+                                                        slideOutHorizontally(targetOffsetX = { -it }, animationSpec = tween(250)) + fadeOut()
+                                                    )
+                                                } else {
+                                                    (slideInHorizontally(initialOffsetX = { -it }, animationSpec = tween(250)) + fadeIn()).togetherWith(
+                                                        slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(250)) + fadeOut()
+                                                    )
+                                                }
+                                            }
+                                        },
+                                        label = "ScreenTransition"
+                                    ) { state ->
+                                        when (state) {
                                             is Screen.WordReader -> WordReaderScreen(
-                                                document = topScreen.doc,
+                                                document = state.doc,
                                                 onBackClick = { popScreen() }
                                             ) {
                                                 HapticUtils.triggerTick(this@MainActivity)
-                                                currentTab = MainTab.SETTINGS
-                                                screenStack = emptyList()
+                                                pushScreen(Screen.Settings)
                                             }
                                             is Screen.ExcelReader -> ExcelReaderScreen(
-                                                document = topScreen.doc,
+                                                document = state.doc,
                                                 onBackClick = { popScreen() }
                                             ) {
                                                 HapticUtils.triggerTick(this@MainActivity)
-                                                currentTab = MainTab.SETTINGS
-                                                screenStack = emptyList()
+                                                pushScreen(Screen.Settings)
                                             }
                                             is Screen.PptReader -> PptReaderScreen(
-                                                document = topScreen.doc,
+                                                document = state.doc,
                                                 onBackClick = { popScreen() }
                                             ) {
                                                 HapticUtils.triggerTick(this@MainActivity)
-                                                currentTab = MainTab.SETTINGS
-                                                screenStack = emptyList()
+                                                pushScreen(Screen.Settings)
                                             }
                                             is Screen.PdfReader -> PdfReaderScreen(
-                                                document = topScreen.doc,
+                                                document = state.doc,
                                                 onBackClick = { popScreen() }
                                             ) {
                                                 HapticUtils.triggerTick(this@MainActivity)
-                                                currentTab = MainTab.SETTINGS
-                                                screenStack = emptyList()
+                                                pushScreen(Screen.Settings)
                                             }
+                                            is Screen.Settings -> SettingsScreen()
                                             is Screen.OcrResult -> OcrResultScreen(
-                                                text = topScreen.text,
-                                                blocks = topScreen.blocks,
+                                                text = state.text,
+                                                blocks = state.blocks,
                                                 onBackClick = { popScreen() }
                                             )
                                             is Screen.CameraCapture -> CameraCaptureScreen(
@@ -375,9 +442,7 @@ class MainActivity : AppCompatActivity() {
                                                 onGalleryClick = { imagePickerLauncher.launch("image/*") },
                                                 onBackClick = { popScreen() }
                                             )
-                                        }
 
-                                        else -> when (currentTab) {
                                             MainTab.HOME -> HomeScreen(
                                                 onNavigateToShelf = { 
                                                     HapticUtils.triggerTick(this@MainActivity)
@@ -461,9 +526,7 @@ class MainActivity : AppCompatActivity() {
                                                 }
                                             )
 
-                                            MainTab.NOTES -> {
-                                                CollectionsScreen()
-                                            }
+                                            MainTab.NOTES -> CollectionsScreen()
 
                                             MainTab.SETTINGS -> SettingsScreen()
                                         }
