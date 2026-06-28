@@ -397,14 +397,13 @@ fun PdfReaderScreen(
                                 }
                             }
                             is PdfContent.Image -> {
-                                AsyncImage(
-                                    model = item.imagePath,
-                                    contentDescription = String.format(java.util.Locale.getDefault(), imageDescFormat, item.pageNumber),
+                                // 图片保护性容器：使用浅灰色背景确保签名等黑色笔迹在深色模式下可见
+                                Box(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .heightIn(max = 200.dp)
                                         .clip(RoundedCornerShape(8.dp))
-                                        .background(if (isCurrent) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else Color.Black)
+                                        .background(if (isCurrent) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else Color(0xFFE0E0E0))
                                         .clickable {
                                             globalParagraphIndex = item.globalIndex
                                             ttsController.speakCurrent()
@@ -413,7 +412,14 @@ fun PdfReaderScreen(
                                             if (isCurrent) Modifier.border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(8.dp))
                                             else Modifier
                                         ),
-                                )
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    AsyncImage(
+                                        model = item.imagePath,
+                                        contentDescription = String.format(java.util.Locale.getDefault(), imageDescFormat, item.pageNumber),
+                                        modifier = Modifier.fillMaxSize(),
+                                    )
+                                }
                             }
                         }
                     }

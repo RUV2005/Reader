@@ -186,7 +186,7 @@ fun WordReaderScreen(
                 }
             },
             colors = TopAppBarDefaults.topAppBarColors(
-                containerColor = MaterialTheme.colorScheme.primary, // 动态主色
+                containerColor = MaterialTheme.colorScheme.primary,
                 titleContentColor = Color.White,
                 navigationIconContentColor = Color.White,
                 actionIconContentColor = Color.White,
@@ -216,7 +216,7 @@ fun WordReaderScreen(
     val content: @Composable (Modifier) -> Unit = { modifier ->
         Box(
             modifier = modifier
-                .background(MaterialTheme.colorScheme.background) // 动态背景
+                .background(MaterialTheme.colorScheme.background)
                 .onGloballyPositioned { coordinates ->
                     viewportHeight = coordinates.size.height
                 }
@@ -391,15 +391,21 @@ fun WordImageItem(
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
-            AsyncImage(
-                model = path,
-                contentDescription = desc,
+            // 图片保护性容器：使用浅灰色背景确保黑色前景（如签名）在深色模式下可见
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(max = 300.dp)
                     .clip(RoundedCornerShape(8.dp))
-                    .background(Color.Black),
-            )
+                    .background(Color(0xFFE0E0E0)), // 固定的浅灰色背景，保护签名等深色前景图
+                contentAlignment = Alignment.Center
+            ) {
+                AsyncImage(
+                    model = path,
+                    contentDescription = desc,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
             Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = desc,

@@ -379,14 +379,20 @@ fun ExcelReaderScreen(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             items(document.images) { imagePath ->
-                                AsyncImage(
-                                    model = imagePath,
-                                    contentDescription = stringResource(id = R.string.desc_image_general),
+                                // 图片保护性容器：使用浅灰色背景防止深色内容不可见
+                                Box(
                                     modifier = Modifier
                                         .size(120.dp)
                                         .clip(RoundedCornerShape(8.dp))
-                                        .background(MaterialTheme.colorScheme.surfaceVariant),
-                                )
+                                        .background(Color(0xFFE0E0E0)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    AsyncImage(
+                                        model = imagePath,
+                                        contentDescription = stringResource(id = R.string.desc_image_general),
+                                        modifier = Modifier.fillMaxSize(),
+                                    )
+                                }
                             }
                         }
                         Spacer(modifier = Modifier.height(16.dp))
