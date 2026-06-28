@@ -403,14 +403,6 @@ fun ExcelReaderScreen(
                     }
                 }
 
-                item(key = "header") {
-                    ExcelHeaderRow(
-                        headers = document.headers,
-                        scrollState = sharedHorizontalScrollState,
-                        onClick = { speakHeaders() },
-                    )
-                }
-
                 item { Spacer(modifier = Modifier.height(8.dp)) }
 
                 itemsIndexed(
