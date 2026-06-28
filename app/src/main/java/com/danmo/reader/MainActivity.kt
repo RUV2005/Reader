@@ -185,11 +185,14 @@ class MainActivity : AppCompatActivity() {
             
             val theme by recentFileRepository.getSettingsRepository().theme
                 .collectAsState(initial = "system")
+            
+            val highContrast by recentFileRepository.getSettingsRepository().highContrast
+                .collectAsState(initial = false)
 
             CompositionLocalProvider(
                 androidx.compose.ui.platform.LocalContext provides LocaleUtils.applyLocale(LocalContext.current, language)
             ) {
-                ReaderTheme(themeSetting = theme) {
+                ReaderTheme(themeSetting = theme, isHighContrast = highContrast) {
                     Surface(
                         modifier = Modifier.fillMaxSize(),
                         color = MaterialTheme.colorScheme.background,

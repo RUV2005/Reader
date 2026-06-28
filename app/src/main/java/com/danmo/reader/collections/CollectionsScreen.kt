@@ -37,7 +37,7 @@ fun CollectionsScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFFF5F5F5))
+            .background(MaterialTheme.colorScheme.background) // 使用系统背景色
     ) {
         // 搜索栏
         TextField(
@@ -48,12 +48,20 @@ fun CollectionsScreen(
                 .padding(16.dp)
                 .clip(RoundedCornerShape(12.dp)),
             placeholder = { Text(stringResource(id = R.string.files_search_placeholder)) },
-            leadingIcon = { Icon(painterResource(id = R.drawable.ic_search), contentDescription = null) },
+            leadingIcon = { 
+                Icon(
+                    painter = painterResource(id = R.drawable.ic_search), 
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                ) 
+            },
             colors = TextFieldDefaults.colors(
-                focusedContainerColor = Color.White,
-                unfocusedContainerColor = Color.White,
+                focusedContainerColor = MaterialTheme.colorScheme.surface,
+                unfocusedContainerColor = MaterialTheme.colorScheme.surface,
                 focusedIndicatorColor = Color.Transparent,
-                unfocusedIndicatorColor = Color.Transparent
+                unfocusedIndicatorColor = Color.Transparent,
+                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                unfocusedTextColor = MaterialTheme.colorScheme.onSurface
             )
         )
 
@@ -101,7 +109,10 @@ private fun NoteItem(
             .fillMaxWidth()
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.onSurface
+        ),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -125,7 +136,7 @@ private fun NoteItem(
             Text(
                 text = note.content,
                 fontSize = 14.sp,
-                color = Color.Gray,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
@@ -133,7 +144,7 @@ private fun NoteItem(
             Text(
                 text = dateStr,
                 fontSize = 12.sp,
-                color = Color.LightGray
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
             )
         }
     }
@@ -147,12 +158,15 @@ private fun NoteDetailDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.surface,
+        titleContentColor = MaterialTheme.colorScheme.onSurface,
+        textContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
         title = { Text(note.title, fontWeight = FontWeight.Bold) },
         text = {
             Column(modifier = Modifier.fillMaxWidth()) {
                 Text(note.content, fontSize = 16.sp)
                 Spacer(modifier = Modifier.height(16.dp))
-                Text("${stringResource(id = R.string.note_category_label)}: ${note.category}", fontSize = 12.sp, color = Color.Gray)
+                Text("${stringResource(id = R.string.note_category_label)}: ${note.category}", fontSize = 12.sp)
             }
         },
         confirmButton = {
@@ -177,10 +191,15 @@ private fun EmptyNotesState() {
             painter = painterResource(id = R.drawable.ic_empty_file),
             contentDescription = null,
             modifier = Modifier.size(64.dp),
-            tint = Color.LightGray
+            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
         )
         Spacer(modifier = Modifier.height(16.dp))
-        Text(stringResource(id = R.string.note_empty_tip), color = Color.Gray, textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 32.dp))
+        Text(
+            text = stringResource(id = R.string.note_empty_tip), 
+            color = MaterialTheme.colorScheme.onSurfaceVariant, 
+            textAlign = TextAlign.Center, 
+            modifier = Modifier.padding(horizontal = 32.dp)
+        )
     }
 }
 
@@ -190,10 +209,11 @@ private fun getCategoryColor(category: String): Color {
     val life = stringResource(id = R.string.cat_life)
     val work = stringResource(id = R.string.cat_work)
     
+    // 如果开启了高对比度，分类颜色也需要高亮
     return when (category) {
-        medicine -> Color(0xFFE91E63)
-        life -> Color(0xFF4CAF50)
-        work -> Color(0xFF2196F3)
-        else -> Color(0xFF9E9E9E)
+        medicine -> Color(0xFFFF5252)
+        life -> Color(0xFF69F0AE)
+        work -> Color(0xFF40C4FF)
+        else -> MaterialTheme.colorScheme.outline
     }
 }

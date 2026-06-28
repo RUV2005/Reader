@@ -17,8 +17,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -88,7 +88,7 @@ fun HomeScreen(
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFFF5F5F5)),
+            .background(MaterialTheme.colorScheme.background),
         contentPadding = PaddingValues(bottom = 16.dp)
     ) {
         // 1. 顶部 Header 区
@@ -128,6 +128,9 @@ fun HeaderSection(
     isLandscape: Boolean = false,
     onSettingsClick: () -> Unit
 ) {
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val containerColor = MaterialTheme.colorScheme.surfaceVariant
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -136,8 +139,8 @@ fun HeaderSection(
             .background(
                 brush = Brush.verticalGradient(
                     colors = listOf(
-                        Color(0xFF4A6FA5),
-                        Color(0xFF6B8CBB)
+                        primaryColor,
+                        primaryColor.copy(alpha = 0.8f)
                     )
                 )
             )
@@ -175,7 +178,7 @@ fun HeaderSection(
         ) {
             Icon(
                 painter = painterResource(id = R.drawable.ic_settings),
-                contentDescription = "设置",
+                contentDescription = stringResource(id = R.string.tab_settings),
                 tint = Color.White,
                 modifier = Modifier.size(20.dp)
             )
@@ -202,6 +205,7 @@ fun FunctionCardsGrid(
             // 降低负位移量，适应更紧凑的横向卡片
             .then(if (useOffset) Modifier.offset(y = (-20).dp) else Modifier)
     ) {
+        // 第一行卡片
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -327,8 +331,8 @@ fun ScanFloatingButton(
             .background(
                 brush = Brush.linearGradient(
                     colors = listOf(
-                        Color(0xFF4A6FA5),
-                        Color(0xFF6B8CBB)
+                        MaterialTheme.colorScheme.primary,
+                        MaterialTheme.colorScheme.secondary
                     )
                 )
             )
@@ -337,7 +341,7 @@ fun ScanFloatingButton(
     ) {
         Icon(
             painter = painterResource(id = R.drawable.ic_card_camera),
-            contentDescription = "扫描识字",
+            contentDescription = stringResource(id = R.string.ocr_title),
             tint = Color.White,
             modifier = Modifier.size(32.dp)
         )
@@ -369,13 +373,13 @@ fun RecentFilesSection(
                 text = stringResource(id = R.string.home_recent_files),
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color(0xFF333333)
+                color = MaterialTheme.colorScheme.onBackground
             )
             if (files.isNotEmpty()) {
                 Text(
                     text = stringResource(id = R.string.home_view_all),
                     fontSize = 14.sp,
-                    color = Color(0xFF4A6FA5),
+                    color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.clickable(onClick = onViewAllClick)
                 )
             }
@@ -452,7 +456,7 @@ fun RecentFileItem(
             .fillMaxWidth()
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Row(
@@ -483,20 +487,20 @@ fun RecentFileItem(
                     text = file.name,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Medium,
-                    color = Color(0xFF333333),
+                    color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = file.openTimeDisplay,
                     fontSize = 12.sp,
-                    color = Color(0xFF999999)
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
             Icon(
                 painter = painterResource(id = R.drawable.ic_chevron_right),
-                contentDescription = "打开",
+                contentDescription = stringResource(id = R.string.reader_play).replace("开始朗读", "打开"),
                 modifier = Modifier.size(20.dp),
                 tint = Color(0xFFCCCCCC)
             )

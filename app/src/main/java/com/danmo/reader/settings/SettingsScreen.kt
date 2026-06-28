@@ -223,7 +223,7 @@ fun SettingsScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFFF5F5F5)),
+            .background(MaterialTheme.colorScheme.background),
     ) {
         SettingsPreviewSection(
             fontSize    = uiState.fontSize,
@@ -237,7 +237,7 @@ fun SettingsScreen(
                 .fillMaxWidth()
                 .height(1.dp)
                 .shadow(elevation = 4.dp)
-                .background(Color(0xFFE0E0E0)),
+                .background(MaterialTheme.colorScheme.outlineVariant),
         )
 
         Column(
@@ -289,7 +289,7 @@ fun SettingsScreen(
             Text(
                 text = stringResource(id = R.string.about_build),
                 fontSize = 12.sp,
-                color = Color(0xFFBBBBBB),
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 24.dp),
@@ -398,7 +398,7 @@ private fun ResetDefaultsButton(onClick: () -> Unit) {
             .padding(horizontal = 16.dp)
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Row(
@@ -421,7 +421,7 @@ private fun ResetDefaultsButton(onClick: () -> Unit) {
                 )
                 Text(
                     text = stringResource(id = R.string.setting_reset_desc),
-                    color = Color.Gray,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 12.sp
                 )
             }
@@ -448,13 +448,13 @@ private fun StorageDialog(
                     text = cacheSize,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF4A6FA5)
+                    color = MaterialTheme.colorScheme.primary
                 )
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
                     stringResource(id = R.string.storage_tip),
                     fontSize = 12.sp,
-                    color = Color.Gray
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         },
@@ -504,8 +504,8 @@ private fun GestureDialog(onDismiss: () -> Unit) {
 @Composable
 private fun GestureItem(title: String, desc: String) {
     Column(modifier = Modifier.padding(vertical = 8.dp)) {
-        Text(text = title, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color(0xFF4A6FA5))
-        Text(text = desc, fontSize = 13.sp, color = Color.DarkGray)
+        Text(text = title, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = MaterialTheme.colorScheme.primary)
+        Text(text = desc, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -555,10 +555,10 @@ private fun FeedbackDialog(onDismiss: () -> Unit) {
             Column {
                 Text(stringResource(id = R.string.feedback_intro), fontSize = 14.sp)
                 Spacer(modifier = Modifier.height(16.dp))
-                Text(stringResource(id = R.string.feedback_email), fontWeight = FontWeight.Bold, color = Color(0xFF4A6FA5))
-                Text(stringResource(id = R.string.feedback_wechat), fontWeight = FontWeight.Bold, color = Color(0xFF4A6FA5))
+                Text(stringResource(id = R.string.feedback_email), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                Text(stringResource(id = R.string.feedback_wechat), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                 Spacer(modifier = Modifier.height(16.dp))
-                Text(stringResource(id = R.string.feedback_footer), fontSize = 12.sp, color = Color.Gray)
+                Text(stringResource(id = R.string.feedback_footer), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         },
         confirmButton = {
@@ -607,7 +607,7 @@ private fun AboutDialog(onDismiss: () -> Unit) {
                     text = stringResource(id = R.string.about_version),
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF4A6FA5)
+                    color = MaterialTheme.colorScheme.primary
                 )
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(
@@ -619,7 +619,7 @@ private fun AboutDialog(onDismiss: () -> Unit) {
                 Text(
                     text = stringResource(id = R.string.about_copyright),
                     fontSize = 12.sp,
-                    color = Color.Gray
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         },
@@ -892,7 +892,7 @@ private fun SettingGroupSection(
                 text = group.title,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color(0xFF666666),
+                color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.padding(start = 8.dp, bottom = 8.dp, top = 8.dp),
             )
             
@@ -912,7 +912,7 @@ private fun SettingGroupSection(
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(12.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
         ) {
             Column {
@@ -975,14 +975,14 @@ private fun SettingItemRow(
                 text = item.title,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Medium,
-                color = Color(0xFF333333),
+                color = MaterialTheme.colorScheme.onSurface,
             )
             item.subtitle?.let {
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = it,
                     fontSize = 12.sp,
-                    color = Color(0xFF999999),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
@@ -1010,7 +1010,7 @@ private fun SettingItemRow(
                                 else          -> ""
                             },
                             fontSize = 14.sp,
-                            color = Color(0xFF999999),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                     }
@@ -1028,7 +1028,7 @@ private fun SettingItemRow(
     if (!isLast) {
         HorizontalDivider(
             modifier = Modifier.padding(start = 66.dp),
-            color = Color(0xFFEEEEEE),
+            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
             thickness = 0.5.dp,
         )
     }
@@ -1125,7 +1125,7 @@ private fun FontSizeDialog(
                             .fillMaxWidth()
                             .clickable { onSizeSelected(opt.size); onDismiss() }
                             .background(
-                                if (isSelected) Color(0xFF4A6FA5).copy(alpha = 0.08f)
+                                if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)
                                 else Color.Transparent
                             )
                             .padding(vertical = 8.dp, horizontal = 4.dp)
@@ -1141,13 +1141,13 @@ private fun FontSizeDialog(
                             text = opt.label,
                             fontSize = 14.sp,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                            color = if (isSelected) Color(0xFF4A6FA5) else Color(0xFF333333),
+                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.weight(1f),
                         )
                         Text(
                             text = opt.sample,
                             fontSize = opt.size.sp,
-                            color = if (isSelected) Color(0xFF4A6FA5) else Color(0xFF999999),
+                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                             modifier = Modifier.width(56.dp),
                             textAlign = TextAlign.End,
@@ -1156,7 +1156,7 @@ private fun FontSizeDialog(
                     }
                     if (opt != options.last()) {
                         HorizontalDivider(
-                            color = Color(0xFFF0F0F0),
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
                             thickness = 0.5.dp,
                         )
                     }
