@@ -224,7 +224,7 @@ fun PdfReaderScreen(
                 }
             },
             colors = TopAppBarDefaults.topAppBarColors(
-                containerColor = Color(0xFFB91C1C),
+                containerColor = MaterialTheme.colorScheme.primary,
                 titleContentColor = Color.White,
                 navigationIconContentColor = Color.White,
                 actionIconContentColor = Color.White,
@@ -233,7 +233,7 @@ fun PdfReaderScreen(
     }
 
     val controlBar: @Composable () -> Unit = {
-        val pdfAccent = Color(0xFFB91C1C)
+        val pdfAccent = MaterialTheme.colorScheme.primary
         ReaderControlBar(
             isSpeaking = isSpeaking,
             currentIndex = currentPageIndex,
@@ -257,7 +257,7 @@ fun PdfReaderScreen(
                         Text(
                             text = "P",
                             fontSize = 10.sp,
-                            color = Color(0xFF888888),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.width(20.dp),
                         )
                         LinearProgressIndicator(
@@ -267,7 +267,7 @@ fun PdfReaderScreen(
                                 .height(3.dp)
                                 .clip(RoundedCornerShape(2.dp)),
                             color = pdfAccent,
-                            trackColor = Color(0xFF444444),
+                            trackColor = MaterialTheme.colorScheme.outlineVariant,
                         )
                     }
                     Spacer(modifier = Modifier.height(4.dp))
@@ -278,7 +278,7 @@ fun PdfReaderScreen(
                         Text(
                             text = "T",
                             fontSize = 10.sp,
-                            color = Color(0xFF888888),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.width(20.dp),
                         )
                         LinearProgressIndicator(
@@ -287,8 +287,8 @@ fun PdfReaderScreen(
                                 .weight(1f)
                                 .height(3.dp)
                                 .clip(RoundedCornerShape(2.dp)),
-                            color = Color(0xFFFF6B6B),
-                            trackColor = Color(0xFF444444),
+                            color = MaterialTheme.colorScheme.secondary,
+                            trackColor = MaterialTheme.colorScheme.outlineVariant,
                         )
                     }
                 }
@@ -299,7 +299,7 @@ fun PdfReaderScreen(
     val content: @Composable (Modifier) -> Unit = { modifier ->
         Box(
             modifier = modifier
-                .background(Color(0xFF1A1A1A))
+                .background(MaterialTheme.colorScheme.background)
                 .onGloballyPositioned { coordinates ->
                     viewportHeight = coordinates.size.height
                 }
@@ -376,7 +376,7 @@ fun PdfReaderScreen(
                                 is PdfContent.Text -> item.globalIndex
                                 is PdfContent.Image -> item.globalIndex
                             }
-                            itemHeights[gIdx] = it.size.height
+                            itemHeights[gIdx] = it.size.height 
                         }
                     ) {
                         when (item) {
@@ -404,13 +404,13 @@ fun PdfReaderScreen(
                                         .fillMaxWidth()
                                         .heightIn(max = 200.dp)
                                         .clip(RoundedCornerShape(8.dp))
-                                        .background(if (isCurrent) Color(0xFFFFFF00).copy(alpha = 0.2f) else Color.Black)
+                                        .background(if (isCurrent) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else Color.Black)
                                         .clickable {
                                             globalParagraphIndex = item.globalIndex
                                             ttsController.speakCurrent()
                                         }
                                         .then(
-                                            if (isCurrent) Modifier.border(2.dp, Color(0xFFFFFF00), RoundedCornerShape(8.dp))
+                                            if (isCurrent) Modifier.border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(8.dp))
                                             else Modifier
                                         ),
                                 )
@@ -434,7 +434,7 @@ fun PdfReaderScreen(
         Row(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color(0xFF1A1A1A)),
+                .background(MaterialTheme.colorScheme.background),
         ) {
             Column(
                 modifier = Modifier
@@ -450,6 +450,7 @@ fun PdfReaderScreen(
         Scaffold(
             topBar = { topBar() },
             bottomBar = { controlBar() },
+            containerColor = MaterialTheme.colorScheme.background
         ) { paddingValues ->
             content(Modifier.fillMaxSize().padding(paddingValues))
         }
@@ -469,19 +470,19 @@ fun PageDivider(pageNumber: Int) {
             modifier = Modifier
                 .weight(1f)
                 .height(1.dp)
-                .background(Color(0xFF444444)),
+                .background(MaterialTheme.colorScheme.outlineVariant),
         )
         Text(
             text = "— Page $pageNumber —",
             fontSize = 12.sp,
-            color = Color(0xFF666666),
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
             modifier = Modifier.padding(horizontal = 12.dp),
         )
         Box(
             modifier = Modifier
                 .weight(1f)
                 .height(1.dp)
-                .background(Color(0xFF444444)),
+                .background(MaterialTheme.colorScheme.outlineVariant),
         )
     }
 }
@@ -501,17 +502,18 @@ fun PdfParagraphItem(
 
     val isTable = text.startsWith("Table Data:")
 
+    val highlightColor = MaterialTheme.colorScheme.primary
     val backgroundColor = when {
-        isCurrent -> Color(0xFFB91C1C).copy(alpha = 0.2f)
-        isTable -> Color.White.copy(alpha = 0.05f)
+        isCurrent -> highlightColor.copy(alpha = 0.2f)
+        isTable -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
         else -> Color.Transparent
     }
 
     val textColor = when {
-        isCurrent -> Color(0xFFFFFF00)
-        isHeading -> Color(0xFFFF6B6B)
-        isTable -> Color(0xFF6BFF9E)
-        else -> Color.White
+        isCurrent -> highlightColor
+        isHeading -> MaterialTheme.colorScheme.secondary
+        isTable -> MaterialTheme.colorScheme.tertiary
+        else -> MaterialTheme.colorScheme.onBackground
     }
 
     val fontSize = if (isHeading) 18.sp else 16.sp
@@ -521,7 +523,7 @@ fun PdfParagraphItem(
             .fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
             .background(backgroundColor)
-            .then(if (isTable) Modifier.border(0.5.dp, Color.Gray.copy(alpha = 0.3f), RoundedCornerShape(8.dp)) else Modifier)
+            .then(if (isTable) Modifier.border(0.5.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(8.dp)) else Modifier)
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 10.dp)
             .semantics {
@@ -554,7 +556,7 @@ fun CurrentPositionIndicator(
         modifier = modifier
             .padding(end = 8.dp)
             .clip(RoundedCornerShape(16.dp))
-            .background(Color(0xFFB91C1C).copy(alpha = 0.8f))
+            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.8f))
             .padding(horizontal = 10.dp, vertical = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {

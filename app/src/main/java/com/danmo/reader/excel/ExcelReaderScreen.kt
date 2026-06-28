@@ -264,7 +264,7 @@ fun ExcelReaderScreen(
                 }
             },
             colors = TopAppBarDefaults.topAppBarColors(
-                containerColor = Color(0xFF217346),
+                containerColor = MaterialTheme.colorScheme.primary,
                 titleContentColor = Color.White,
                 navigationIconContentColor = Color.White,
                 actionIconContentColor = Color.White,
@@ -273,7 +273,7 @@ fun ExcelReaderScreen(
     }
 
     val controlBar: @Composable () -> Unit = {
-        val excelAccent = Color(0xFF217346)
+        val excelAccent = MaterialTheme.colorScheme.primary
         ReaderControlBar(
             isSpeaking = isSpeaking,
             currentIndex = currentRowIndex,
@@ -302,7 +302,7 @@ fun ExcelReaderScreen(
                     DropdownMenu(
                         expanded = showModeMenu,
                         onDismissRequest = { showModeMenu = false },
-                        modifier = Modifier.background(Color(0xFF333333)),
+                        modifier = Modifier.background(MaterialTheme.colorScheme.surface),
                     ) {
                         ReadMode.entries.forEach { mode ->
                             val label = if (mode == ReadMode.ROW_BY_ROW) modeRowStr else modeColStr
@@ -310,7 +310,7 @@ fun ExcelReaderScreen(
                                 text = {
                                     Text(
                                         text = label,
-                                        color = if (mode == readMode) excelAccent else Color.White,
+                                        color = if (mode == readMode) excelAccent else MaterialTheme.colorScheme.onSurface,
                                         fontWeight = if (mode == readMode) FontWeight.Bold else FontWeight.Normal,
                                     )
                                 },
@@ -330,7 +330,7 @@ fun ExcelReaderScreen(
     val content: @Composable (Modifier) -> Unit = { modifier ->
         Box(
             modifier = modifier
-                .background(Color(0xFF1A1A1A))
+                .background(MaterialTheme.colorScheme.background)
                 .onGloballyPositioned { coordinates ->
                     viewportHeight = coordinates.size.height
                 }
@@ -372,7 +372,7 @@ fun ExcelReaderScreen(
                             text = stringResource(id = R.string.excel_image_section, document.images.size),
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF217346),
+                            color = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.padding(bottom = 8.dp)
                         )
                         androidx.compose.foundation.lazy.LazyRow(
@@ -385,7 +385,7 @@ fun ExcelReaderScreen(
                                     modifier = Modifier
                                         .size(120.dp)
                                         .clip(RoundedCornerShape(8.dp))
-                                        .background(Color(0xFF2A2A2A)),
+                                        .background(MaterialTheme.colorScheme.surfaceVariant),
                                 )
                             }
                         }
@@ -450,7 +450,7 @@ fun ExcelReaderScreen(
         Row(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color(0xFF1A1A1A)),
+                .background(MaterialTheme.colorScheme.background),
         ) {
             Column(
                 modifier = Modifier
@@ -466,6 +466,7 @@ fun ExcelReaderScreen(
         Scaffold(
             topBar = { topBar() },
             bottomBar = { controlBar() },
+            containerColor = MaterialTheme.colorScheme.background
         ) { paddingValues ->
             content(Modifier.fillMaxSize().padding(paddingValues))
         }
@@ -485,7 +486,7 @@ fun ExcelHeaderRow(
             .fillMaxWidth()
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF217346)),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
     ) {
         Row(
@@ -524,17 +525,21 @@ fun ExcelDataRow(
     scrollState: androidx.compose.foundation.ScrollState,
     onClick: (Int) -> Unit,
 ) {
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val surfaceColor = MaterialTheme.colorScheme.surface
+    val onSurfaceColor = MaterialTheme.colorScheme.onSurface
+    
     val backgroundColor = when {
-        isCurrent && readMode == ReadMode.ROW_BY_ROW -> Color(0xFF217346).copy(alpha = 0.3f)
-        isCurrent && readMode == ReadMode.COLUMN_BY_COLUMN -> Color(0xFF217346).copy(alpha = 0.15f)
-        isTotalRow -> Color(0xFF333333)
-        else -> Color(0xFF2A2A2A)
+        isCurrent && readMode == ReadMode.ROW_BY_ROW -> primaryColor.copy(alpha = 0.3f)
+        isCurrent && readMode == ReadMode.COLUMN_BY_COLUMN -> primaryColor.copy(alpha = 0.15f)
+        isTotalRow -> MaterialTheme.colorScheme.surfaceVariant
+        else -> surfaceColor
     }
 
     val textColor = when {
-        isCurrent -> Color(0xFFFFFF00)
-        isTotalRow -> Color(0xFF6BFF9E)
-        else -> Color.White
+        isCurrent -> MaterialTheme.colorScheme.primary
+        isTotalRow -> MaterialTheme.colorScheme.secondary
+        else -> onSurfaceColor
     }
 
     Card(
@@ -563,14 +568,14 @@ fun ExcelDataRow(
                         .width(100.dp)
                         .clickable { onClick(colIndex) }
                         .padding(horizontal = 2.dp),
-                    color = if (isCurrentCell) Color(0xFF217346).copy(alpha = 0.5f) else Color.Transparent,
+                    color = if (isCurrentCell) primaryColor.copy(alpha = 0.5f) else Color.Transparent,
                     shape = RoundedCornerShape(4.dp)
                 ) {
                     Text(
                         text = cell,
                         fontSize = 14.sp,
                         fontWeight = if (isCurrentCell) FontWeight.Bold else FontWeight.Normal,
-                        color = if (isCurrentCell) Color(0xFFFFFF00) else textColor,
+                        color = if (isCurrentCell) Color.White else textColor,
                         textAlign = TextAlign.Center,
                         maxLines = 2,
                         modifier = Modifier.padding(4.dp)
@@ -593,7 +598,7 @@ fun CurrentRowIndicator(
         modifier = modifier
             .padding(end = 8.dp)
             .clip(RoundedCornerShape(16.dp))
-            .background(Color(0xFF217346).copy(alpha = 0.8f))
+            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.8f))
             .padding(horizontal = 10.dp, vertical = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {

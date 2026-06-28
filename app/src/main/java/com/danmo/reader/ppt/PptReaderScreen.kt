@@ -233,7 +233,7 @@ fun PptReaderScreen(
                 }
             },
             colors = TopAppBarDefaults.topAppBarColors(
-                containerColor = Color(0xFFD24726),
+                containerColor = MaterialTheme.colorScheme.primary,
                 titleContentColor = Color.White,
                 navigationIconContentColor = Color.White,
                 actionIconContentColor = Color.White,
@@ -242,13 +242,14 @@ fun PptReaderScreen(
     }
 
     val controlBar: @Composable () -> Unit = {
+        val accentColor = MaterialTheme.colorScheme.primary
         ReaderControlBar(
             isSpeaking = isSpeaking,
             currentIndex = currentSlideIndex,
             totalCount = document.slides.size,
             speechRate = ttsController.speechRate.collectAsState().value,
-            accentColor = Color(0xFFD24726),
-            progressColor = Color(0xFFD24726),
+            accentColor = accentColor,
+            progressColor = accentColor,
             previousLabel = stringResource(id = R.string.reader_prev_page),
             nextLabel = stringResource(id = R.string.reader_next_page),
             positionText = stringResource(id = R.string.reader_page_format, currentSlideIndex + 1, document.slides.size),
@@ -262,7 +263,7 @@ fun PptReaderScreen(
     val content: @Composable (Modifier) -> Unit = { modifier ->
         Box(
             modifier = modifier
-                .background(Color(0xFF1A1A1A))
+                .background(MaterialTheme.colorScheme.background)
                 .onGloballyPositioned { coordinates ->
                     viewportHeight = coordinates.size.height
                 }
@@ -336,7 +337,7 @@ fun PptReaderScreen(
         Row(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color(0xFF1A1A1A)),
+                .background(MaterialTheme.colorScheme.background),
         ) {
             Column(
                 modifier = Modifier
@@ -352,6 +353,7 @@ fun PptReaderScreen(
         Scaffold(
             topBar = { topBar() },
             bottomBar = { controlBar() },
+            containerColor = MaterialTheme.colorScheme.background
         ) { paddingValues ->
             content(Modifier.fillMaxSize().padding(paddingValues))
         }
@@ -367,14 +369,14 @@ fun SlideCard(
     showNotes: Boolean,
     onClick: () -> Unit,
 ) {
-    val backgroundColor = when {
-        isCurrent -> Color(0xFFD24726).copy(alpha = 0.2f)
-        else -> Color(0xFF2A2A2A)
-    }
+    val highlightColor = MaterialTheme.colorScheme.primary
+    val surfaceColor = MaterialTheme.colorScheme.surface
+    val onSurfaceColor = MaterialTheme.colorScheme.onSurface
+    val onSurfaceVariantColor = MaterialTheme.colorScheme.onSurfaceVariant
 
-    val borderColor = when {
-        isCurrent -> Color(0xFFD24726)
-        else -> Color.Transparent
+    val backgroundColor = when {
+        isCurrent -> highlightColor.copy(alpha = 0.15f)
+        else -> surfaceColor
     }
 
     Card(
@@ -387,7 +389,7 @@ fun SlideCard(
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = backgroundColor),
         elevation = CardDefaults.cardElevation(defaultElevation = if (isCurrent) 4.dp else 1.dp),
-        border = if (isCurrent) androidx.compose.foundation.BorderStroke(2.dp, borderColor) else null,
+        border = if (isCurrent) androidx.compose.foundation.BorderStroke(2.dp, highlightColor) else null,
     ) {
         Column(
             modifier = Modifier
@@ -402,14 +404,14 @@ fun SlideCard(
                     modifier = Modifier
                         .size(32.dp)
                         .clip(CircleShape)
-                        .background(if (isCurrent) Color(0xFFD24726) else Color(0xFF444444)),
+                        .background(if (isCurrent) highlightColor else onSurfaceVariantColor.copy(alpha = 0.2f)),
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
                         text = slide.slideNumber.toString(),
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color.White,
+                        color = if (isCurrent) Color.White else onSurfaceColor,
                     )
                 }
 
@@ -419,7 +421,7 @@ fun SlideCard(
                     text = slide.title,
                     fontSize = if (isCurrent) 20.sp else 18.sp,
                     fontWeight = FontWeight.Bold,
-                    color = if (isCurrent) Color(0xFFFFA07A) else Color(0xFFCCCCCC),
+                    color = if (isCurrent) highlightColor else onSurfaceColor,
                 )
             }
 
@@ -432,7 +434,7 @@ fun SlideCard(
                         .height(120.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    itemsIndexed(slide.images) { imgIndex, imagePath ->
+                    itemsIndexed(slide.images) { _, imagePath ->
                         AsyncImage(
                             model = imagePath,
                             contentDescription = stringResource(id = R.string.desc_image_general),
@@ -458,7 +460,7 @@ fun SlideCard(
                         modifier = Modifier
                             .size(6.dp)
                             .clip(CircleShape)
-                            .background(if (isCurrent) Color(0xFFFFA07A) else Color(0xFF666666))
+                            .background(if (isCurrent) highlightColor else onSurfaceVariantColor)
                             .padding(top = 8.dp),
                     )
 
@@ -467,7 +469,7 @@ fun SlideCard(
                     Text(
                         text = content,
                         fontSize = 15.sp,
-                        color = if (isCurrent) Color(0xFFFFFF00) else Color.White,
+                        color = if (isCurrent) highlightColor else onSurfaceColor,
                         fontWeight = if (isCurrent) FontWeight.Medium else FontWeight.Normal,
                         lineHeight = 24.sp,
                     )
@@ -489,21 +491,21 @@ fun SlideCard(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(8.dp))
-                        .background(Color(0xFF333333))
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
                         .padding(12.dp),
                 ) {
                     Column {
                         Text(
-                            text = "备注",
+                            text = stringResource(id = R.string.desc_notes, "").replace(": ", ""),
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFFAAAAAA),
+                            color = onSurfaceVariantColor,
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = slide.notes,
                             fontSize = 14.sp,
-                            color = Color(0xFFCCCCCC),
+                            color = onSurfaceColor,
                             lineHeight = 22.sp,
                         )
                     }
@@ -523,7 +525,7 @@ fun PptTableItem(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
-            .background(if (isCurrent) Color.White.copy(alpha = 0.1f) else Color.Black.copy(alpha = 0.2f))
+            .background(if (isCurrent) MaterialTheme.colorScheme.primary.copy(alpha = 0.1f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
             .padding(8.dp)
     ) {
         rows.forEach { row ->
@@ -538,7 +540,7 @@ fun PptTableItem(
                     Text(
                         text = cell,
                         fontSize = 12.sp,
-                        color = if (isCurrent) Color(0xFFFFFF00) else Color.White,
+                        color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier
                             .width(100.dp)
                             .padding(2.dp),
@@ -547,7 +549,7 @@ fun PptTableItem(
                     )
                 }
             }
-            HorizontalDivider(color = Color.Gray.copy(alpha = 0.3f), thickness = 0.5.dp)
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         }
     }
 }
@@ -564,7 +566,7 @@ fun CurrentSlideIndicator(
         modifier = modifier
             .padding(end = 8.dp)
             .clip(RoundedCornerShape(16.dp))
-            .background(Color(0xFFD24726).copy(alpha = 0.8f))
+            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.8f))
             .padding(horizontal = 10.dp, vertical = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {

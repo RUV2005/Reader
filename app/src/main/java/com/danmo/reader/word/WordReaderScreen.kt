@@ -186,7 +186,7 @@ fun WordReaderScreen(
                 }
             },
             colors = TopAppBarDefaults.topAppBarColors(
-                containerColor = Color(0xFF2B579A),
+                containerColor = MaterialTheme.colorScheme.primary, // 动态主色
                 titleContentColor = Color.White,
                 navigationIconContentColor = Color.White,
                 actionIconContentColor = Color.White,
@@ -195,7 +195,7 @@ fun WordReaderScreen(
     }
 
     val controlBar: @Composable () -> Unit = {
-        val wordAccent = Color(0xFF2B579A)
+        val wordAccent = MaterialTheme.colorScheme.primary
         ReaderControlBar(
             isSpeaking = isSpeaking,
             currentIndex = currentIndex,
@@ -216,7 +216,7 @@ fun WordReaderScreen(
     val content: @Composable (Modifier) -> Unit = { modifier ->
         Box(
             modifier = modifier
-                .background(Color(0xFFF9F9F9))
+                .background(MaterialTheme.colorScheme.background) // 动态背景
                 .onGloballyPositioned { coordinates ->
                     viewportHeight = coordinates.size.height
                 }
@@ -307,7 +307,7 @@ fun WordReaderScreen(
         Row(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color(0xFF2B579A)),
+                .background(MaterialTheme.colorScheme.background),
         ) {
             Column(
                 modifier = Modifier
@@ -323,6 +323,7 @@ fun WordReaderScreen(
         Scaffold(
             topBar = { topBar() },
             bottomBar = { controlBar() },
+            containerColor = MaterialTheme.colorScheme.background
         ) { paddingValues ->
             content(Modifier.fillMaxSize().padding(paddingValues))
         }
@@ -341,11 +342,14 @@ fun WordTextItem(
     labelTitle: String,
     onClick: () -> Unit,
 ) {
+    val highlightColor = MaterialTheme.colorScheme.primary
+    val textColor = if (isCurrent) highlightColor else MaterialTheme.colorScheme.onBackground
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
-            .background(if (isCurrent) Color(0xFF2B579A).copy(alpha = 0.1f) else Color.Transparent)
+            .background(if (isCurrent) highlightColor.copy(alpha = 0.1f) else Color.Transparent)
             .clickable(onClick = onClick)
             .padding(8.dp)
             .semantics {
@@ -360,7 +364,7 @@ fun WordTextItem(
             text = text,
             fontSize = if (isHeading) 22.sp else 18.sp,
             fontWeight = if (isHeading) FontWeight.Bold else FontWeight.Normal,
-            color = if (isCurrent) Color(0xFF2B579A) else Color(0xFF333333),
+            color = textColor,
             lineHeight = 28.sp,
         )
     }
@@ -373,6 +377,8 @@ fun WordImageItem(
     isCurrent: Boolean,
     onClick: () -> Unit,
 ) {
+    val highlightColor = MaterialTheme.colorScheme.primary
+    
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -380,7 +386,7 @@ fun WordImageItem(
             .padding(vertical = 8.dp),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (isCurrent) Color(0xFF2B579A).copy(alpha = 0.1f) else Color.White
+            containerColor = if (isCurrent) highlightColor.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surface
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
@@ -398,7 +404,7 @@ fun WordImageItem(
             Text(
                 text = desc,
                 fontSize = 14.sp,
-                color = Color.Gray,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -413,6 +419,8 @@ fun WordTableItem(
     onClick: () -> Unit,
 ) {
     val scrollState = rememberScrollState()
+    val highlightColor = MaterialTheme.colorScheme.primary
+    
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -420,10 +428,10 @@ fun WordTableItem(
             .padding(vertical = 8.dp),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (isCurrent) Color(0xFF2B579A).copy(alpha = 0.1f) else Color.White
+            containerColor = if (isCurrent) highlightColor.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surface
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        border = if (isCurrent) androidx.compose.foundation.BorderStroke(2.dp, Color(0xFF2B579A)) else null
+        border = if (isCurrent) androidx.compose.foundation.BorderStroke(2.dp, highlightColor) else null
     ) {
         Column(modifier = Modifier.padding(8.dp)) {
             rows.forEach { row ->
@@ -441,11 +449,11 @@ fun WordTableItem(
                             modifier = Modifier
                                 .width(120.dp)
                                 .padding(4.dp),
-                            color = Color(0xFF333333)
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                     }
                 }
-                HorizontalDivider(color = Color.LightGray.copy(alpha = 0.5f))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             }
         }
     }
@@ -461,7 +469,7 @@ fun CurrentProgressIndicator(
         modifier = modifier
             .padding(end = 8.dp)
             .clip(RoundedCornerShape(16.dp))
-            .background(Color(0xFF2B579A).copy(alpha = 0.8f))
+            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.8f))
             .padding(horizontal = 10.dp, vertical = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
