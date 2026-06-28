@@ -671,15 +671,47 @@ class MainActivity : AppCompatActivity() {
 
     @Composable
     private fun BottomNavigationBar(selectedTab: Int, onTabSelected: (Int) -> Unit) {
-        Surface(modifier = Modifier.fillMaxWidth(), color = Color.White, shadowElevation = 8.dp) {
-            Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = MaterialTheme.colorScheme.surface, // 动态使用主题表面色
+            shadowElevation = 8.dp
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 bottomNavItems.forEachIndexed { index, item ->
                     val isSelected = selectedTab == index
-                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f).clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = { onTabSelected(index) }).padding(vertical = 4.dp)) {
+                    val activeColor = MaterialTheme.colorScheme.primary
+                    val inactiveColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                    
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                onClick = { onTabSelected(index) }
+                            )
+                            .padding(vertical = 4.dp)
+                    ) {
                         val label = stringResource(id = item.labelRes)
-                        Icon(painter = painterResource(id = item.iconRes), contentDescription = label, modifier = Modifier.size(24.dp), tint = if (isSelected) Color(0xFF4A6FA5) else Color(0xFF999999))
+                        Icon(
+                            painter = painterResource(id = item.iconRes),
+                            contentDescription = label,
+                            modifier = Modifier.size(24.dp),
+                            tint = if (isSelected) activeColor else inactiveColor
+                        )
                         Spacer(modifier = Modifier.height(2.dp))
-                        Text(text = label, fontSize = 11.sp, color = if (isSelected) Color(0xFF4A6FA5) else Color(0xFF999999))
+                        Text(
+                            text = label,
+                            fontSize = 11.sp,
+                            color = if (isSelected) activeColor else inactiveColor
+                        )
                     }
                 }
             }
