@@ -502,7 +502,7 @@ fun RecentFileItem(
                 painter = painterResource(id = R.drawable.ic_chevron_right),
                 contentDescription = stringResource(id = R.string.reader_play).replace("开始朗读", "打开"),
                 modifier = Modifier.size(20.dp),
-                tint = Color(0xFFCCCCCC)
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
             )
         }
     }

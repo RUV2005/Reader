@@ -590,7 +590,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun handleSelectedDocument(uri: Uri, docType: DocumentType, fileName: String?) {
         if (docType == DocumentType.UNKNOWN) {
-            parseError = "Unsupported format"
+            parseError = getString(R.string.error_unsupported)
             return
         }
         isLoading = true
@@ -620,7 +620,7 @@ class MainActivity : AppCompatActivity() {
                                 val sheet = result.data.sheets.firstOrNull()
                                 if (sheet != null) {
                                     pushScreen(Screen.ExcelReader(ExcelDocument(uri.toString(), fileName ?: result.data.fileName, sheet.name, sheet.headers, sheet.rows.map { it.cells }, 0, sheet.imagePaths)))
-                                } else throw Exception("No sheet found")
+                                } else throw Exception(getString(R.string.error_no_sheet))
                             }
                             is ParseResult.Error -> parseError = result.message
                         }
@@ -647,7 +647,7 @@ class MainActivity : AppCompatActivity() {
                             is ParseResult.Error -> parseError = result.message
                         }
                     }
-                    else -> parseError = "Unsupported"
+                    else -> parseError = getString(R.string.error_unsupported)
                 }
             } catch (e: Exception) {
                 parseError = "${getString(R.string.error_open_failed)}: ${e.message}"
@@ -721,16 +721,39 @@ class MainActivity : AppCompatActivity() {
 
     @Composable
     private fun GlobalNavigationRail(selectedTab: Int, onTabSelected: (Int) -> Unit) {
-        NavigationRail(containerColor = Color.White, modifier = Modifier.fillMaxHeight()) {
+        NavigationRail(
+            containerColor = MaterialTheme.colorScheme.surface, // 动态主题色
+            modifier = Modifier.fillMaxHeight()
+        ) {
             Spacer(modifier = Modifier.weight(1f))
             bottomNavItems.forEachIndexed { index, item ->
                 val isSelected = selectedTab == index
+                val activeColor = MaterialTheme.colorScheme.primary
+                val inactiveColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                
                 NavigationRailItem(
                     selected = isSelected,
                     onClick = { onTabSelected(index) },
-                    icon = { Icon(painter = painterResource(id = item.iconRes), contentDescription = stringResource(id = item.labelRes), modifier = Modifier.size(24.dp)) },
-                    label = { Text(stringResource(id = item.labelRes), fontSize = 11.sp) },
-                    colors = NavigationRailItemDefaults.colors(selectedIconColor = Color(0xFF4A6FA5), selectedTextColor = Color(0xFF4A6FA5), unselectedIconColor = Color(0xFF999999), unselectedTextColor = Color(0xFF999999), indicatorColor = Color(0xFF4A6FA5).copy(alpha = 0.1f))
+                    icon = { 
+                        Icon(
+                            painter = painterResource(id = item.iconRes), 
+                            contentDescription = stringResource(id = item.labelRes), 
+                            modifier = Modifier.size(24.dp)
+                        ) 
+                    },
+                    label = { 
+                        Text(
+                            stringResource(id = item.labelRes), 
+                            fontSize = 11.sp
+                        ) 
+                    },
+                    colors = NavigationRailItemDefaults.colors(
+                        selectedIconColor = activeColor,
+                        selectedTextColor = activeColor,
+                        unselectedIconColor = inactiveColor,
+                        unselectedTextColor = inactiveColor,
+                        indicatorColor = activeColor.copy(alpha = 0.1f)
+                    )
                 )
             }
             Spacer(modifier = Modifier.weight(1f))

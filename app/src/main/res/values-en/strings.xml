@@ -156,6 +156,8 @@
     <string name="dialog_know">Got it</string>
     <string name="error_open_failed">Open Failed</string>
     <string name="error_retry">Retry</string>
+    <string name="error_unsupported">Unsupported file format</string>
+    <string name="error_no_sheet">No valid sheet found in the document</string>
     <string name="loading_parsing">Parsing...</string>
     <string name="perm_camera_denied">Camera permission is required for scanning</string>
     <string name="perm_file_invalid">File permission invalid, please reselect</string>
